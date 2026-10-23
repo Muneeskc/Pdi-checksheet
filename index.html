@@ -43,9 +43,10 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 #cm{display:none;position:fixed;inset:0;background:#000;z-index:99;flex-direction:column}
 .ch{padding:10px 14px;background:#1e293b;color:#fff;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;padding-top:calc(10px + env(safe-area-inset-top,0px))}
 .cb{flex:1;min-height:0;padding:8px}.cb img{display:block;max-width:100%}
-.cf{padding:10px;background:#1e293b;display:flex;gap:6px;flex-direction:column;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.cf{padding:10px;background:#1e293b;display:flex;gap:8px;flex-direction:column;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .cf button{background:#334155;font-size:12px;padding:8px 10px}
-.cf button.active-mode{background:#0284c7;color:#fff;border:1px solid #38bdf8}
+.cf .filter-btn{border:1px solid var(--bd);background:var(--in);color:var(--tx)}
+.cf .filter-btn.active{background:#0284c7;color:#fff;border-color:#38bdf8;font-weight:bold}
 .cropper-container{direction:ltr;font-size:0;line-height:0;position:relative;touch-action:none;user-select:none}
 .cropper-container img{display:block;height:100%;max-height:none!important;max-width:none!important;min-height:0!important;min-width:0!important;width:100%}
 .cropper-canvas,.cropper-crop-box,.cropper-drag-box,.cropper-modal,.cropper-wrap-box{inset:0;position:absolute}
@@ -87,19 +88,19 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📸 Additional Inspection Photos</span><i>Optional (Multi-select)</i></div>
 <div class="box" style="text-align:center"><div class="row"><button onclick="pick(1,addP)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP,1)">🖼️ From Gallery</button></div><div class="gal" id="ga"></div></div>
 
-<!-- ചെക്ക് ലിസ്റ്റ്: സ്കാനർ & എൻഹാൻസ് ഫീച്ചർ -->
-<div class="sec"><span>📑 Checklist (Scanner &amp; Enhancements)</span><i>Document Scanner</i></div>
+<!-- ചെക്ക് ലിസ്റ്റ് വിത്ത് ഡോക്യുമെന്റ് സ്കാനർ & എൻഹാൻസ് -->
+<div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; Enhance</i></div>
 <div class="box" style="text-align:center">
-    <div class="row"><button onclick="pick(1,newCk)">📷 Snap Page</button><button class="gl" onclick="pick(0,newCk)">🖼️ From Gallery</button></div>
+    <div class="row"><button onclick="pick(1,newCk)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk)">🖼️ From Gallery</button></div>
     <div class="gal" id="gc"></div>
 </div>
 
-<!-- എൽവി ബാറ്ററി ഫോട്ടോ സെക്ഷൻ -->
+<!-- എൽവി ബാറ്ററി ഫോട്ടോ (സാധാരണ ഫോട്ടോ അപ്‌ലോഡ് മാത്രം) -->
 <div class="sec"><span>🔋 LV Battery Photo</span><i>Inspection</i></div>
 <div class="box" style="text-align:center">
-    <div class="pv" id="bpv" style="height:140px;">No Battery Photo Uploaded</div>
+    <div class="pv" id="bpv" style="height:120px;">No Battery Photo Uploaded</div>
     <div class="row">
-        <button onclick="pick(1,setBattery)">📷 Snap Battery</button>
+        <button onclick="pick(1,setBattery)">📷 Take Battery Photo</button>
         <button class="gl" onclick="pick(0,setBattery)">🖼️ From Gallery</button>
     </div>
 </div>
@@ -110,34 +111,35 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <p id="msg" style="font-size:12px;color:var(--mu)"></p>
 </div>
 
-<!-- ചെക്ക് ലിസ്റ്റ് സ്മാർട്ട് ക്രോപ്പറും ഫിൽട്ടറുകളും ഉള്ള മോഡൽ വിൻഡോ -->
+<!-- ക്രോപ്പർ & ഫിൽട്ടർ സ്ക്രീൻ (ചെക്ക് ലിസ്റ്റിന് വേണ്ടി) -->
 <div id="cm">
-    <div class="ch"><span>Smart Crop &amp; Enhance Checklist</span><button style="background:#ef4444" onclick="closeC()">✕ Cancel</button></div>
+    <div class="ch"><span>Checklist Scanner &amp; Enhance</span><button style="background:#ef4444" onclick="closeC()">✕ Cancel</button></div>
     <div class="cb"><img id="ci"></div>
     <div class="cf">
-        <!-- ഡോക്യുമെന്റ് എൻഹാൻസ് ബട്ടണുകൾ -->
+        <!-- 4 എൻഹാൻസ് ഓപ്ഷനുകൾ -->
+        <div style="text-align:center;font-size:12px;color:var(--mu);font-weight:bold;">Enhance Filter:</div>
         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
-            <button id="btn-orig" class="active-mode" onclick="setDocMode('original')">Original</button>
-            <button id="btn-enh" onclick="setDocMode('enhance')">⚡ Magic Color</button>
-            <button id="btn-gray" onclick="setDocMode('grayscale')">Grayscale</button>
-            <button id="btn-bw" onclick="setDocMode('bw')">Pure White (Scan)</button>
+            <button type="button" class="filter-btn active" id="f-orig" onclick="setFilter('original')">Original</button>
+            <button type="button" class="filter-btn" id="f-magic" onclick="setFilter('enhance')">⚡ Magic Color</button>
+            <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
+            <button type="button" class="filter-btn" id="f-bw" onclick="setFilter('bw')">Pure White (Scan)</button>
         </div>
-        <!-- ക്രോപ്പർ കൺട്രോളുകൾ & പൂർത്തിയാക്കൽ -->
-        <div style="display:flex;gap:6px;justify-content:space-between;align-items:center;margin-top:4px;">
+        <!-- റൊട്ടേഷൻ & ഡൺ ബട്ടൺ -->
+        <div style="display:flex;gap:6px;justify-content:space-between;align-items:center;margin-top:6px;">
             <div style="display:flex;gap:5px;">
                 <button onclick="cr.rotate(-90)">↺ Left</button>
                 <button onclick="cr.rotate(90)">↻ Right</button>
                 <button style="background:#0284c7" onclick="auto()">⚡ Re-Detect</button>
                 <button onclick="cr.reset()">Full</button>
             </div>
-            <button style="background:#10b981;font-size:13px;padding:9px 16px" onclick="doneC()">✓ Done</button>
+            <button style="background:#10b981;font-size:13px;padding:9px 18px" onclick="doneC()">✓ Done Crop</button>
         </div>
     </div>
 </div>
 
 <script>
 var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
-var currentDocMode = 'original';
+var selectedFilter = 'original';
 
 var CAT={"Nexon":["Smart","Smart+","Smart+ S","Pure","Pure S","Creative","Creative+","Creative+ S","Fearless","Fearless S","Fearless+ S","Fearless+ S Dark"],
 "Nexon EV":["Creative 45","Creative+ 45","Fearless 45","Fearless+ 45","Fearless+ S 45","Empowered 45","Empowered+ 45","Empowered+ Dark 45","Creative 30","Fearless 30","Empowered+ 30"],
@@ -165,34 +167,35 @@ function pick(cam,cb,multi){var i=document.createElement("input");i.type="file";
 i.onchange=function(){Array.from(i.files).forEach(function(f){rd(f,cb)})};i.click()}
 function rd(f,cb){var r=new FileReader();r.onload=function(e){var im=new Image();im.onload=function(){var s=Math.min(1,2000/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.88))};im.src=e.target.result};r.readAsDataURL(f)}
 
-/* Battery Photo Handling */
+/* LV Battery Upload (Simple Preview) */
 function setBattery(u){
     D.battery = u;
     $("bpv").innerHTML = '<img src="' + u + '" style="width:100%;height:100%;object-fit:contain;">';
 }
 
-/* Checklist Filter Selection */
-function setDocMode(mode){
-    currentDocMode = mode;
-    ['orig','enh','gray','bw'].forEach(function(id){
-        var b = $("btn-" + id);
-        if(b) b.classList.remove('active-mode');
+/* Filter Selection for Checklist */
+function setFilter(mode){
+    selectedFilter = mode;
+    ['orig','magic','gray','bw'].forEach(function(m){
+        var b = $('f-' + m);
+        if(b) b.classList.remove('active');
     });
-    if(mode==='original') $("btn-orig").classList.add('active-mode');
-    if(mode==='enhance') $("btn-enh").classList.add('active-mode');
-    if(mode==='grayscale') $("btn-gray").classList.add('active-mode');
-    if(mode==='bw') $("btn-bw").classList.add('active-mode');
+    if(mode === 'original') $('f-orig').classList.add('active');
+    if(mode === 'enhance') $('f-magic').classList.add('active');
+    if(mode === 'grayscale') $('f-gray').classList.add('active');
+    if(mode === 'bw') $('f-bw').classList.add('active');
 }
 
-/* Image Enhancement Algorithm */
-function applyFilterToCanvas(canvas, mode){
-    if(mode === 'original') return canvas.toDataURL("image/jpeg", 0.92);
-    var ctx = canvas.getContext("2d");
-    var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+/* Image Filter Processing */
+function processCanvasFilter(cv, mode){
+    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.92);
+    var ctx = cv.getContext("2d");
+    var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
     var d = imgData.data;
 
     for (var i = 0; i < d.length; i += 4) {
         var r = d[i], gr = d[i+1], b = d[i+2];
+
         if(mode === 'enhance'){
             var contrast = 1.35, brightness = 15;
             d[i]   = Math.min(255, Math.max(0, (r - 128) * contrast + 128 + brightness));
@@ -208,7 +211,7 @@ function applyFilterToCanvas(canvas, mode){
         }
     }
     ctx.putImageData(imgData, 0, 0);
-    return canvas.toDataURL("image/jpeg", 0.92);
+    return cv.toDataURL("image/jpeg", 0.92);
 }
 
 var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]],DOC=[["f22","Form 22"],["pen","Chassis Print"]];
@@ -247,7 +250,7 @@ if(bw<im.naturalWidth*.4||bh<im.naturalHeight*.4)return{x:im.naturalWidth*.05,y:
 function newCk(u){ei=-1;openC(u)}
 function openC(u){
     var i=$("ci");
-    setDocMode('original');
+    setFilter('original');
     $("cm").style.display="flex";
     if(cr)cr.destroy();
     i.onload=function(){
@@ -260,7 +263,7 @@ function closeC(){if(cr){cr.destroy();cr=null}$("cm").style.display="none"}
 function doneC(){
     if(!cr)return;
     var canvas = cr.getCroppedCanvas({maxWidth:2400,maxHeight:2400});
-    var u = applyFilterToCanvas(canvas, currentDocMode);
+    var u = processCanvasFilter(canvas, selectedFilter);
     var o = $("ci").src;
     
     if(ei==-2){
@@ -285,6 +288,12 @@ if(D.sticker||D.doc.f22||D.doc.pen||D.battery){
     if(D.sticker)img(p,D.sticker,14,42,86,70,"Windshield Barcode Sticker");
     if(D.battery)img(p,D.battery,110,42,86,70,"LV Battery Photo");
     if(D.doc.f22)img(p,D.doc.f22,14,120,86,110,"Form 22 Copy");
-    if(D.
+    if(D.doc.pen)img(p,D.doc.pen,110,120,86,60,"Chassis Print / Impression");
+}
 
-      
+D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"")});
+return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf"}}
+async function out(share){var b=build();if(!b)return;var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
+try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:"PDI Report - "+b.f});$("msg").textContent="Done: "+b.f;return}}catch(e){if(e.name=="AbortError")return}
+var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=b.f;a.click();$("msg").textContent="PDF created: "+b.f+". If nothing downloaded, open this page in your phone browser."}
+</script></body></html>
