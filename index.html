@@ -139,7 +139,9 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= LIGHTWEIGHT 100% RELIABLE CLOUD SYNC =================
+// ================= TELEGRAM DIRECT PDF UPLOAD & SHEET SYNC =================
+const TG_BOT_TOKEN = "8658546151:AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
+const TG_CHAT_ID = "-1004402903082";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
 function getPending(){
@@ -150,19 +152,52 @@ function setPending(arr){
 }
 
 async function executeUpload(item){
-    await fetch(SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            dateTime: item.dateTime,
-            chassis: item.chassis,
-            model: item.model,
-            inspector: 'Yard Team',
-            status: 'COMPLETED',
-            fileName: item.fileName
-        })
+    // 1. ഗൂഗിൾ ഷീറ്റിലേക്ക് വിവരങ്ങൾ രേഖപ്പെടുത്തുന്നു
+    try {
+        await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                dateTime: item.dateTime,
+                chassis: item.chassis,
+                model: item.model,
+                inspector: 'Yard Team',
+                status: 'COMPLETED',
+                fileName: item.fileName
+            })
+        });
+    } catch(e) { console.error("Sheet error", e); }
+
+    // 2. Telegram ചാനലിലേക്ക് PDF ഫയൽ നേരിട്ട് അപ്‌ലോഡ് ചെയ്യുന്നു
+    const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
+                    "📅 Date: " + item.dateTime + "\n" +
+                    "🔢 Chassis: " + item.chassis + "\n" +
+                    "🚘 Model: " + item.model + "\n" +
+                    "👤 Inspector: Yard Team\n" +
+                    "📁 File: " + item.fileName;
+
+    const byteCharacters = atob(item.pdfBase64.split(',')[1]);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const pdfBlob = new Blob([byteArray], { type: 'application/pdf' });
+
+    const formData = new FormData();
+    formData.append("chat_id", TG_CHAT_ID);
+    formData.append("caption", caption);
+    formData.append("document", pdfBlob, item.fileName);
+
+    const res = await fetch("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/sendDocument", {
+        method: "POST",
+        body: formData
     });
+
+    if(!res.ok) {
+        throw new Error("Telegram PDF upload failed");
+    }
 }
 
 var isSyncing = false;
@@ -185,26 +220,31 @@ async function processBackgroundSync(){
     
     var msg = $("msg");
     if(remaining.length === 0 && queue.length > 0){
-        if(msg) msg.textContent = "✓ Synced to Google Sheet & Telegram!";
+        if(msg) msg.textContent = "✓ PDF Uploaded to Telegram & Sheet!";
     }
 }
 
 window.addEventListener('online', processBackgroundSync);
 
-function handleCloudSync(ch, m, fName){
-    var item = {
-        id: Date.now(),
-        dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
-        chassis: ch,
-        model: m,
-        fileName: fName
+function handleCloudSync(ch, m, blob, fName){
+    var reader = new FileReader();
+    reader.onload = async function(e){
+        var item = {
+            id: Date.now(),
+            dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
+            chassis: ch,
+            model: m,
+            fileName: fName,
+            pdfBase64: e.target.result
+        };
+
+        var p = getPending();
+        p.push(item);
+        setPending(p);
+
+        processBackgroundSync();
     };
-
-    var p = getPending();
-    p.push(item);
-    setPending(p);
-
-    processBackgroundSync();
+    reader.readAsDataURL(blob);
 }
 
 // ================= APP ORIGINAL LOGIC =================
@@ -380,8 +420,8 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // 100% Reliable Cloud Background Sync (Sheet & Telegram)
-    handleCloudSync(b.ch, b.m, b.f);
+    // 100% Background Cloud Sync: Sheet Log & Telegram Direct PDF Document Upload
+    handleCloudSync(b.ch, b.m, blob, b.f);
 
     if(share){
         try{
