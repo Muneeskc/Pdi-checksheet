@@ -1,10 +1,23 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Vehicle Inward &amp; Inspection Pro</title>
+
+<!-- PWA & Mobile App Installation Settings -->
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0284c7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PDI Pro">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3202/3202926.png">
+
+<!-- Libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+
 <style>
 :root{--bg:#0b1120;--cd:#1e293b;--in:#0f172a;--bd:#475569;--tx:#f8fafc;--mu:#94a3b8;--ac:#38bdf8;--bl:#0284c7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#e8edf4;--cd:#fff;--in:#f1f5f9;--bd:#b6c0cd;--tx:#0f172a;--mu:#475569;--ac:#0369a1}}
@@ -72,7 +85,9 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 .point-ne{cursor:nesw-resize;right:-8px;top:-8px}.point-nw{cursor:nwse-resize;left:-8px;top:-8px}
 .point-sw{bottom:-8px;cursor:nesw-resize;left:-8px}.point-se{bottom:-8px;cursor:nwse-resize;right:-8px}
 .cropper-move{cursor:move}.cropper-hidden{display:none!important}.cropper-hide{display:block;height:0;position:absolute;width:0}.cropper-invisible{opacity:0}
-</style></head><body>
+</style>
+</head>
+<body>
 <div class="app">
 <h1>Vehicle Inward &amp; Inspection Pro</h1><div class="sub">Tata Motors Yard Management System</div>
 
@@ -152,7 +167,7 @@ function setPending(arr){
 }
 
 async function executeUpload(item){
-    // 1. ഗൂഗിൾ ഷീറ്റിലേക്ക് വിവരങ്ങൾ രേഖപ്പെടുത്തുന്നു
+    // 1. ഗൂഗിൾ ഷീറ്റിലേക്ക് ഡാറ്റ അയക്കുന്നു
     try {
         await fetch(SCRIPT_URL, {
             method: 'POST',
@@ -169,7 +184,7 @@ async function executeUpload(item){
         });
     } catch(e) { console.error("Sheet error", e); }
 
-    // 2. Telegram ചാനലിലേക്ക് PDF ഫയൽ നേരിട്ട് അപ്‌ലോഡ് ചെയ്യുന്നു
+    // 2. Telegram ചാനലിലേക്ക് PDF ഫയൽ നേരിട്ട് അപ്‌ലോഡ് ചെയ്യുന്നു (sendDocument)
     const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
                     "📅 Date: " + item.dateTime + "\n" +
                     "🔢 Chassis: " + item.chassis + "\n" +
@@ -439,4 +454,18 @@ async function out(share){
     a.click();
     $("msg").textContent="PDF Saved: "+b.f;
 }
-</script></body></html>
+</script>
+
+<!-- Service Worker Registration for PWA Installation -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('PWA Service Worker registered!', reg))
+      .catch(err => console.error('PWA Service Worker failed', err));
+  });
+}
+</script>
+
+</body>
+</html>
