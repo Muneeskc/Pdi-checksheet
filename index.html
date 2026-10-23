@@ -127,7 +127,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📋 Other Documents</span><i>Optional</i></div><div class="g2" id="docs"></div>
 
 <div class="ft"><button style="background:#10b981" onclick="out(0)">💾 Save PDF</button><button style="background:#2563eb" onclick="out(1)">📤 Share PDF</button></div>
-<p id="msg" style="font-size:12px;color:var(--mu);text-align:center;margin-top:10px"></p>
+<p id="msg" style="font-size:13px;font-weight:bold;color:#38bdf8;text-align:center;margin-top:12px"></p>
 </div>
 
 <div id="cm">
@@ -154,15 +154,14 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= OFFLINE-SAFE INDEXEDDB & AUTO CLOUD SYNC =================
+// ================= ROBUST OFFLINE INDEXEDDB & AUTO TELEGRAM SYNC =================
 const TG_BOT_TOKEN = "8658546151:AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
 const TG_CHAT_ID = "-1004402903082";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
-// 1. IndexedDB സെറ്റപ്പ് (വലിയ ഫയലുകൾ സൂക്ഷിക്കാൻ)
 function openDB() {
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open("PdiDatabase", 1);
+        const req = indexedDB.open("PdiDatabaseV2", 1);
         req.onupgradeneeded = () => req.result.createObjectStore("syncQueue", { keyPath: "id" });
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -199,9 +198,21 @@ async function removeFromOfflineDB(id) {
     });
 }
 
-// 2. ബാക്ക്ഗ്രൗണ്ടിൽ അപ്‌ലോഡ് ചെയ്യുന്ന ഫംഗ്ഷൻ
+// Base64-ൽ നിന്ന് Blob ഉണ്ടാക്കുന്നു
+function b64toBlob(b64Data) {
+    const parts = b64Data.split(';base64,');
+    const contentType = parts[0].split(':')[1];
+    const raw = window.atob(parts[1]);
+    const uInt8Array = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; ++i) {
+        uInt8Array[i] = raw.charCodeAt(i);
+    }
+    return new Blob([uInt8Array], { type: contentType });
+}
+
+// സിങ്ക് ചെയ്യാനുള്ള ഫംഗ്ഷൻ
 async function executeUpload(item) {
-    // A. Google Sheet Sync
+    // 1. Google Sheet Sync
     try {
         await fetch(SCRIPT_URL, {
             method: 'POST',
@@ -216,9 +227,9 @@ async function executeUpload(item) {
                 fileName: item.fileName
             })
         });
-    } catch(e) { console.error("Sheet sync failed", e); }
+    } catch(e) { console.error("Sheet Sync error:", e); }
 
-    // B. Telegram Direct PDF Upload
+    // 2. Telegram SendDocument
     const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
                     "📅 Date: " + item.dateTime + "\n" +
                     "🔢 Chassis: " + item.chassis + "\n" +
@@ -226,10 +237,11 @@ async function executeUpload(item) {
                     "👤 Inspector: Yard Team\n" +
                     "📁 File: " + item.fileName;
 
+    const pdfBlob = b64toBlob(item.pdfBase64);
     const formData = new FormData();
     formData.append("chat_id", TG_CHAT_ID);
     formData.append("caption", caption);
-    formData.append("document", item.pdfBlob, item.fileName);
+    formData.append("document", pdfBlob, item.fileName);
 
     const res = await fetch("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/sendDocument", {
         method: "POST",
@@ -237,11 +249,10 @@ async function executeUpload(item) {
     });
 
     if (!res.ok) {
-        throw new Error("Telegram Upload Failed");
+        throw new Error("Telegram API Upload failed");
     }
 }
 
-// 3. ഓട്ടോമാറ്റിക് സിങ്ക് പ്രോസസ്സർ
 var isSyncing = false;
 async function processBackgroundSync() {
     if (!navigator.onLine || isSyncing) return;
@@ -252,54 +263,64 @@ async function processBackgroundSync() {
 
         isSyncing = true;
         var msg = $("msg");
-        if (msg) msg.textContent = "⏳ Uploading offline reports to Cloud...";
+        if (msg) msg.textContent = "⏳ Uploading " + queue.length + " pending report(s) to Cloud...";
 
         for (var item of queue) {
             try {
                 await executeUpload(item);
-                await removeFromOfflineDB(item.id); // അപ്‌ലോഡ് ആയാൽ ഡിലീറ്റ് ചെയ്യും
+                await removeFromOfflineDB(item.id);
             } catch (err) {
-                console.error("Retry later for item:", item.id);
+                console.error("Upload retry failed for item:", item.id, err);
+                isSyncing = false;
+                return; // നെറ്റ് തടസ്സപ്പെട്ടാൽ അടുത്ത റൗണ്ടിലേക്ക് നിർത്തുന്നു
             }
         }
         
         isSyncing = false;
         const remaining = await getOfflineQueue();
         if (remaining.length === 0) {
-            if (msg) msg.textContent = "✓ All pending reports synced to Telegram & Sheet!";
+            if (msg) msg.textContent = "✓ All Offline Reports Synced to Telegram & Sheet!";
         } else {
-            if (msg) msg.textContent = "⚠️ " + remaining.length + " report(s) still pending sync.";
+            if (msg) msg.textContent = "⚠️ " + remaining.length + " report(s) pending sync.";
         }
     } catch(e) {
         isSyncing = false;
     }
 }
 
-// നെറ്റ് വരുമ്പോഴും ആപ്പ് തുറക്കുമ്പോഴും സ്വയം സിങ്ക് ചെയ്യും
+// നെറ്റ് വരുമ്പോഴും, സ്ക്രീൻ തുറക്കുമ്പോഴും, ഇടയ്ക്കിടയ്ക്കും സിങ്ക് ഓൺ ആകും
 window.addEventListener('online', processBackgroundSync);
 window.addEventListener('load', processBackgroundSync);
+window.addEventListener('focus', processBackgroundSync);
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') processBackgroundSync();
+});
+setInterval(processBackgroundSync, 5000); // ഓരോ 5 സെക്കൻഡിലും നെറ്റ് ഉണ്ടെങ്കിൽ ചെക്ക് ചെയ്യും
 
-// സേവ് / ഷെയർ അമർത്തുമ്പോൾ ഫയൽ ഓഫ്ലൈൻ DB-ൽ ഇടുന്ന ഫംഗ്ഷൻ
 async function handleCloudSync(ch, m, blob, fName) {
-    var item = {
-        id: Date.now(),
-        dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
-        chassis: ch,
-        model: m,
-        fileName: fName,
-        pdfBlob: blob
-    };
+    var reader = new FileReader();
+    reader.onload = async function(e) {
+        var item = {
+            id: Date.now(),
+            dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
+            chassis: ch,
+            model: m,
+            fileName: fName,
+            pdfBase64: e.target.result // Base64 ആയി സൂക്ഷിക്കുന്നു (100% സുരക്ഷിതം)
+        };
 
-    try {
-        await saveToOfflineDB(item); // ഫോണിലെ മെമ്മറിയിൽ സുരക്ഷിതമായി സേവ് ചെയ്തു
-        if (!navigator.onLine) {
-            $("msg").textContent = "✓ Saved Offline. Will auto-upload when online!";
+        try {
+            await saveToOfflineDB(item);
+            if (!navigator.onLine) {
+                $("msg").textContent = "✓ Saved Offline! Will auto-upload once internet is on.";
+            }
+        } catch(err) {
+            console.error("DB Save failed:", err);
         }
-    } catch(e) {
-        console.error("DB Save Error:", e);
-    }
 
-    processBackgroundSync();
+        processBackgroundSync();
+    };
+    reader.readAsDataURL(blob);
 }
 
 // ================= APP ORIGINAL LOGIC =================
@@ -475,14 +496,13 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // IndexedDB സേവിങ്ങും ഓട്ടോ-സിങ്കും ഇവിടെ നടക്കുന്നു
+    // IndexedDB-ലേക്ക് Base64 ആയി സേവ് ചെയ്ത് ക്ലൗഡിലേക്ക് സിങ്ക് ചെയ്യുന്നു
     handleCloudSync(b.ch, b.m, blob, b.f);
 
     if(share){
         try{
             if(navigator.canShare&&navigator.canShare({files:[f]})){
                 await navigator.share({files:[f],title:"PDI Report - "+b.f});
-                $("msg").textContent="Shared: "+b.f;
                 return;
             }
         }catch(e){if(e.name=="AbortError")return}
@@ -492,7 +512,6 @@ async function out(share){
     a.href=URL.createObjectURL(blob);
     a.download=b.f;
     a.click();
-    $("msg").textContent="PDF Saved: "+b.f;
 }
 </script>
 
