@@ -1,338 +1,497 @@
 <!DOCTYPE html>
-<html lang="ml">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>KTKL PDI Checklist & Cloud Sync</title>
-  <style>
-    :root {
-      --primary: #1e3a8a;
-      --success: #15803d;
-      --whatsapp: #25d366;
-      --danger: #b91c1c;
-      --bg: #f8fafc;
-      --card-bg: #ffffff;
-      --text: #0f172a;
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vehicle Inward &amp; Inspection Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+<style>
+:root{--bg:#0b1120;--cd:#1e293b;--in:#0f172a;--bd:#475569;--tx:#f8fafc;--mu:#94a3b8;--ac:#38bdf8;--bl:#0284c7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#e8edf4;--cd:#fff;--in:#f1f5f9;--bd:#b6c0cd;--tx:#0f172a;--mu:#475569;--ac:#0369a1}}
+:root[data-theme="light"]{--bg:#e8edf4;--cd:#fff;--in:#f1f5f9;--bd:#b6c0cd;--tx:#0f172a;--mu:#475569;--ac:#0369a1}
+html{color-scheme:light dark}
+*{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,sans-serif}
+body{margin:0;background:var(--bg);color:var(--tx);padding:12px;display:flex;justify-content:center}
+.app{width:100%;max-width:520px;background:var(--cd);border-radius:20px;padding:18px;border:1px solid var(--bd)}
+h1{font-size:20px;color:var(--ac);text-align:center;margin:0}.sub{text-align:center;font-size:13px;color:var(--mu);margin:4px 0 16px}
+.net-status{padding:6px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;margin-bottom:12px}
+.net-online{background:#dcfce7;color:#15803d}
+.net-offline{background:#fee2e2;color:#b91c1c}
+.stk{border:2px dashed var(--ac);border-radius:14px;padding:12px;text-align:center;margin-bottom:16px}
+.stk h3{margin:0 0 4px;font-size:15px;color:var(--ac)}.stk p{margin:0 0 10px;font-size:12px;color:var(--mu)}
+.pv{height:110px;background:var(--in);border-radius:8px;border:1px solid var(--bd);margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mu);overflow:hidden}
+.pv img{width:100%;height:100%;object-fit:contain}
+.row{display:flex;gap:8px;justify-content:center}
+button{border:0;border-radius:8px;font-weight:700;font-size:12px;padding:10px 14px;cursor:pointer;color:#fff;background:var(--bl)}
+button.gl{background:var(--in);color:var(--tx);border:1px solid var(--bd)}
+#st{font-size:12px;color:#d97706;margin-top:8px;min-height:16px;font-weight:600}
+.box{background:var(--in);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:14px}
+label{display:block;font-size:13px;font-weight:600;margin:0 0 5px;color:var(--mu)}
+input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border:1px solid var(--bd);border-radius:9px;color:var(--tx);font-size:14px;margin-bottom:8px}
+.sec{font-size:14px;font-weight:700;color:#d97706;margin:22px 0 10px;border-bottom:1px solid var(--bd);padding-bottom:6px;display:flex;justify-content:space-between}
+.sec i{font-size:11px;font-weight:400;font-style:normal;color:var(--mu)}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.g2{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.card{background:var(--in);border:1px dashed var(--bd);border-radius:12px;padding:6px;text-align:center}
+.card .l{font-size:11px;font-weight:600;margin-bottom:4px}
+.card .p{height:70px;background:var(--cd);border-radius:8px;overflow:hidden;position:relative;margin-bottom:5px;display:flex;align-items:center;justify-content:center;font-size:22px}
+.card .p svg{width:90%;height:90%;fill:var(--mu)}
+.card .p img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.card .b{display:flex;gap:4px}.card .b button{flex:1;padding:6px 2px;font-size:11px}
+.gal{display:flex;gap:8px;overflow-x:auto;padding:6px 0;min-height:30px}
+.th{position:relative;flex:0 0 74px;height:74px;border-radius:6px;overflow:hidden;border:1px solid var(--ac)}
+.th img{width:100%;height:100%;object-fit:cover}
+.th .x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#ef4444;padding:0;font-size:10px}
+.th .e{position:absolute;bottom:2px;left:2px;padding:1px 4px;font-size:9px;background:rgba(15,23,42,.85);border:1px solid var(--ac);color:var(--ac)}
+.ft{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px}.ft button{padding:15px;font-size:15px;border-radius:12px}
+.sync-sec{margin-top:16px;border-top:1px solid var(--bd);padding-top:12px;text-align:center}
+.btn-sync{background:#15803d;width:100%;padding:12px;font-size:13px;border-radius:10px}
+#cm{display:none;position:fixed;inset:0;background:#000;z-index:99;flex-direction:column}
+.ch{padding:10px 14px;background:#1e293b;color:#fff;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;padding-top:calc(10px + env(safe-area-inset-top,0px))}
+.cb{flex:1;min-height:0;padding:8px}.cb img{display:block;max-width:100%}
+.cf{padding:10px;background:#1e293b;display:flex;gap:8px;flex-direction:column;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.cf button{background:#334155;font-size:12px;padding:8px 10px}
+.cf .filter-btn{border:1px solid var(--bd);background:var(--in);color:var(--tx)}
+.cf .filter-btn.active{background:#0284c7;color:#fff;border-color:#38bdf8;font-weight:bold}
+
+#cm.flt-original .cropper-container img { filter: none !important; }
+#cm.flt-enhance .cropper-container img { filter: contrast(1.4) brightness(1.1) saturate(1.2) !important; }
+#cm.flt-grayscale .cropper-container img { filter: grayscale(100%) contrast(1.2) !important; }
+#cm.flt-bw .cropper-container img { filter: grayscale(100%) contrast(2.6) brightness(1.2) !important; }
+
+.cropper-container{direction:ltr;font-size:0;line-height:0;position:relative;touch-action:none;user-select:none}
+.cropper-container img{display:block;height:100%;max-height:none!important;max-width:none!important;min-height:0!important;min-width:0!important;width:100%}
+.cropper-canvas,.cropper-crop-box,.cropper-drag-box,.cropper-modal,.cropper-wrap-box{inset:0;position:absolute}
+.cropper-canvas,.cropper-wrap-box{overflow:hidden}
+.cropper-drag-box{background:#fff;opacity:0}.cropper-modal{background:#000;opacity:.55}
+.cropper-view-box{display:block;height:100%;width:100%;outline:1px solid #39f;overflow:hidden}
+.cropper-dashed{border:0 dashed #eee;display:block;opacity:.5;position:absolute}
+.dashed-h{border-bottom-width:1px;border-top-width:1px;height:33.3%;left:0;top:33.3%;width:100%}
+.dashed-v{border-left-width:1px;border-right-width:1px;height:100%;left:33.3%;top:0;width:33.3%}
+.cropper-face,.cropper-line,.cropper-point{display:block;height:100%;opacity:.1;position:absolute;width:100%}
+.cropper-face{background:#fff;left:0;top:0}.cropper-line{background:#39f}
+.line-e{cursor:ew-resize;right:-6px;top:0;width:12px}.line-w{cursor:ew-resize;left:-6px;top:0;width:12px}
+.line-n{cursor:ns-resize;height:12px;left:0;top:-6px}.line-s{bottom:-6px;cursor:ns-resize;height:12px;left:0}
+.cropper-point{background:#39f;height:16px;opacity:.85;width:16px}
+.point-e{cursor:ew-resize;margin-top:-8px;right:-8px;top:50%}.point-w{cursor:ew-resize;left:-8px;margin-top:-8px;top:50%}
+.point-n{cursor:ns-resize;left:50%;margin-left:-8px;top:-8px}.point-s{bottom:-8px;cursor:ns-resize;left:50%;margin-left:-8px}
+.point-ne{cursor:nesw-resize;right:-8px;top:-8px}.point-nw{cursor:nwse-resize;left:-8px;top:-8px}
+.point-sw{bottom:-8px;cursor:nesw-resize;left:-8px}.point-se{bottom:-8px;cursor:nwse-resize;right:-8px}
+.cropper-move{cursor:move}.cropper-hidden{display:none!important}.cropper-hide{display:block;height:0;position:absolute;width:0}.cropper-invisible{opacity:0}
+</style></head><body>
+<div class="app">
+<h1>Vehicle Inward &amp; Inspection Pro</h1><div class="sub">Tata Motors Yard Management System</div>
+<div id="netStatus" class="net-status net-online">Checking Network...</div>
+
+<div class="stk"><h3>📸 Windshield Barcode Sticker</h3><p>Upload sticker photo to auto-detect the chassis number</p>
+<div class="pv" id="spv">No Sticker Uploaded</div>
+<div class="row"><button onclick="pick(1,sticker)">📷 Take Photo</button><button class="gl" onclick="pick(0,sticker)">🖼️ From Gallery</button></div>
+<div id="st"></div></div>
+
+<div class="box"><label>1. Select Tata Model</label><select id="ms" onchange="onM()"><option value="">-- Choose Vehicle Model --</option></select>
+<div class="row" style="margin:-2px 0 10px"><input type="text" id="nm" placeholder="New model name" style="margin:0"><button onclick="addM()">＋ Add</button></div>
+
+<input type="text" id="M" placeholder="Model" style="margin:0"></div>
+
+<label>Chassis Number (17 Digits)</label>
+<input type="text" id="C" placeholder="e.g. MAT853036TWHX0267" style="text-transform:uppercase">
+
+<div class="sec"><span>📸 Vehicle Photos (Sides &amp; Corners)</span></div><div class="g3" id="six"></div>
+
+<div class="sec"><span>📸 Additional Inspection Photos</span><i>Optional (Multi-select)</i></div>
+<div class="box" style="text-align:center"><div class="row"><button onclick="pick(1,addP)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP,1)">🖼️ From Gallery</button></div><div class="gal" id="ga"></div></div>
+
+<div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; Enhance</i></div>
+<div class="box" style="text-align:center">
+    <div class="row"><button onclick="pick(1,newCk)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk)">🖼️ From Gallery</button></div>
+    <div class="gal" id="gc"></div>
+</div>
+
+<div class="sec"><span>🔋 LV Battery Photo</span><i>Inspection</i></div>
+<div class="box" style="text-align:center">
+    <div class="pv" id="bpv" style="height:120px;">No Battery Photo Uploaded</div>
+    <div class="row">
+        <button onclick="pick(1,setBattery)">📷 Take Battery Photo</button>
+        <button class="gl" onclick="pick(0,setBattery)">🖼️ From Gallery</button>
+    </div>
+</div>
+
+<div class="sec"><span>📋 Other Documents</span><i>Optional</i></div><div class="g2" id="docs"></div>
+
+<div class="ft"><button style="background:#10b981" onclick="out(0)">💾 Save PDF</button><button style="background:#2563eb" onclick="out(1)">📤 Share PDF</button></div>
+<p id="msg" style="font-size:12px;color:var(--mu);text-align:center;margin-top:10px"></p>
+
+<div class="sync-sec">
+    <button class="btn-sync" id="syncBtn" onclick="syncPendingUploads()">🔄 Sync Pending Cloud Reports (<span id="pendCnt">0</span>)</button>
+</div>
+
+</div>
+
+<div id="cm">
+    <div class="ch"><span>Checklist Scanner &amp; Enhance</span><button style="background:#ef4444" onclick="closeC()">✕ Cancel</button></div>
+    <div class="cb"><img id="ci"></div>
+    <div class="cf">
+        <div style="text-align:center;font-size:12px;color:var(--mu);font-weight:bold;">Enhance Filter:</div>
+        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+            <button type="button" class="filter-btn active" id="f-orig" onclick="setFilter('original')">Original</button>
+            <button type="button" class="filter-btn" id="f-magic" onclick="setFilter('enhance')">⚡ Magic Color</button>
+            <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
+            <button type="button" class="filter-btn" id="f-bw" onclick="setFilter('bw')">Pure White (Scan)</button>
+        </div>
+        <div style="display:flex;gap:6px;justify-content:space-between;align-items:center;margin-top:6px;">
+            <div style="display:flex;gap:5px;">
+                <button onclick="cr.rotate(-90)">↺ Left</button>
+                <button onclick="cr.rotate(90)">↻ Right</button>
+                <button style="background:#0284c7" onclick="auto()">⚡ Re-Detect</button>
+                <button onclick="cr.reset()">Full</button>
+            </div>
+            <button style="background:#10b981;font-size:13px;padding:9px 18px" onclick="doneC()">✓ Done Crop</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ================= CLOUD & INTEGRATION CONFIG =================
+const BOT_TOKEN = "8658546151:AAEeMNHGeDEm1N3UUJkxSoppFexr7AMp-OA";
+const CHAT_ID = "-1004402903082";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
+
+// Network Tracking
+function updateNetBar(){
+    var b = $('netStatus');
+    if(!b) return;
+    if(navigator.onLine){
+        b.className = 'net-status net-online';
+        b.textContent = '🌐 Online (Auto-Cloud Sync Active)';
+    } else {
+        b.className = 'net-status net-offline';
+        b.textContent = '📴 Offline - Yard Mode (Saved to Device)';
     }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: var(--bg);
-      color: var(--text);
-      margin: 0;
-      padding: 12px;
-      box-sizing: border-box;
-    }
-    .header {
-      background: var(--primary);
-      color: white;
-      padding: 16px;
-      border-radius: 12px;
-      text-align: center;
-      margin-bottom: 12px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .header h1 { margin: 0; font-size: 20px; }
-    .network-bar {
-      padding: 8px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      text-align: center;
-      margin-bottom: 12px;
-    }
-    .online { background: #dcfce7; color: var(--success); }
-    .offline { background: #fee2e2; color: var(--danger); }
-    .card {
-      background: var(--card-bg);
-      border-radius: 12px;
-      padding: 16px;
-      margin-bottom: 14px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      border: 1px solid #e2e8f0;
-    }
-    h2 {
-      font-size: 16px;
-      margin-top: 0;
-      margin-bottom: 12px;
-      color: var(--primary);
-      border-bottom: 2px solid #e2e8f0;
-      padding-bottom: 6px;
-    }
-    label {
-      display: block;
-      margin-top: 10px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #334155;
-    }
-    input, select, textarea {
-      width: 100%;
-      padding: 10px;
-      margin-top: 4px;
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      box-sizing: border-box;
-      font-size: 15px;
-      background: #f8fafc;
-    }
-    .btn {
-      width: 100%;
-      padding: 14px;
-      border: none;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: bold;
-      cursor: pointer;
-      margin-top: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-    }
-    .btn-save { background: var(--primary); color: white; }
-    .btn-sync { background: var(--success); color: white; }
-    .btn-share { background: #128c7e; color: white; }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .item-card {
-      border: 1px solid #e2e8f0;
-      border-left: 4px solid var(--primary);
-      padding: 10px;
-      border-radius: 8px;
-      margin-bottom: 10px;
-      background: #ffffff;
-      font-size: 13px;
-    }
-    .item-card.defect { border-left-color: var(--danger); }
-    .share-btn-sm {
-      background: #25d366;
-      color: white;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-weight: bold;
-      font-size: 12px;
-      margin-top: 8px;
-      cursor: pointer;
-      display: inline-block;
-    }
-  </style>
-</head>
-<body>
+}
+window.addEventListener('online', updateNetBar);
+window.addEventListener('offline', updateNetBar);
+setTimeout(updateNetBar, 100);
 
-  <div class="header">
-    <h1>🚗 KTKL PDI Tracker</h1>
-  </div>
+// Storage Helpers
+function getPending(){
+    try { return JSON.parse(localStorage.getItem('ktkl_pending_pdi') || '[]'); } catch(e){ return []; }
+}
+function setPending(arr){
+    localStorage.setItem('ktkl_pending_pdi', JSON.stringify(arr));
+    updatePendingBadge();
+}
+function updatePendingBadge(){
+    var b = $('pendCnt');
+    if(b) b.textContent = getPending().length;
+}
+setTimeout(updatePendingBadge, 200);
 
-  <div id="netStatus" class="network-bar online">Checking Network...</div>
-
-  <!-- Entry Form -->
-  <div class="card">
-    <h2>Vehicle Inspection Entry</h2>
-    <form id="pdiForm">
-      <label>ചേസിസ് നമ്പർ (Chassis Number):</label>
-      <input type="text" id="chassis" required placeholder="Enter full chassis number" style="text-transform: uppercase;">
-
-      <label>മോഡൽ (Vehicle Model):</label>
-      <input type="text" id="model" required placeholder="e.g. Creta, Nexon, Swift">
-
-      <label>ഇൻസ്പെക്ടർ (Inspector Name):</label>
-      <input type="text" id="inspector" required placeholder="Inspector name">
-
-      <label>പരിശോധനാ ഫലം (PDI Status):</label>
-      <select id="status">
-        <option value="PASSED">✅ Passed (OK to Deliver)</option>
-        <option value="DEFECT FOUND">⚠️ Defect Found (Rectification Needed)</option>
-        <option value="REJECTED">❌ Rejected</option>
-      </select>
-
-      <label>കുറിപ്പുകൾ / കംപ്ലയിന്റുകൾ (Remarks / Defects):</label>
-      <textarea id="notes" rows="3" placeholder="Scratches, dents, missing accessories etc."></textarea>
-
-      <button type="submit" class="btn btn-save">💾 Save Inspection (Offline)</button>
-    </form>
-  </div>
-
-  <!-- Sync & Pending Section -->
-  <div class="card">
-    <h2>Pending Cloud Upload (<span id="pendingCount">0</span>)</h2>
-    <button id="syncBtn" class="btn btn-sync">🔄 Sync to Sheet & Telegram</button>
-    <div id="pendingList" style="margin-top: 14px;"></div>
-  </div>
-
-  <script>
-    // Configuration
-    const BOT_TOKEN = "8658546151:AAEeMNHGeDEm1N3UUJkxSoppFexr7AMp-OA";
-    const CHAT_ID = "-1004402903082";
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
-
-    // Network Status Tracker
-    function updateNetworkStatus() {
-      const netBar = document.getElementById('netStatus');
-      if (navigator.onLine) {
-        netBar.className = 'network-bar online';
-        netBar.innerText = '🌐 Online (Ready to Sync)';
-      } else {
-        netBar.className = 'network-bar offline';
-        netBar.innerText = '📴 Offline - Yard Mode (Local Storage)';
-      }
-    }
-    window.addEventListener('online', updateNetworkStatus);
-    window.addEventListener('offline', updateNetworkStatus);
-    updateNetworkStatus();
-
-    // Local Storage Helpers
-    function getStoredRecords() {
-      return JSON.parse(localStorage.getItem('ktkl_pdi_records') || '[]');
-    }
-
-    function saveStoredRecords(data) {
-      localStorage.setItem('ktkl_pdi_records', JSON.stringify(data));
-      renderPendingRecords();
-    }
-
-    // Generate Share Message
-    function getFormattedMessage(item) {
-      return `🚗 *KTKL PDI Report*\n` +
-             `-----------------------------\n` +
-             `📅 *Date:* ${item.dateTime}\n` +
-             `🔢 *Chassis:* ${item.chassis}\n` +
-             `🚘 *Model:* ${item.model}\n` +
-             `👤 *Inspector:* ${item.inspector}\n` +
-             `📊 *Status:* ${item.status}\n` +
-             `📝 *Remarks:* ${item.notes || 'None'}\n` +
-             `-----------------------------`;
-    }
-
-    // Share to WhatsApp Group
-    function shareToWhatsApp(index) {
-      const records = getStoredRecords();
-      const item = records[index];
-      if (!item) return;
-
-      const text = encodeURIComponent(getFormattedMessage(item));
-      window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
-    }
-
-    // Render Pending List
-    function renderPendingRecords() {
-      const records = getStoredRecords();
-      document.getElementById('pendingCount').innerText = records.length;
-      const listEl = document.getElementById('pendingList');
-      listEl.innerHTML = '';
-
-      if (records.length === 0) {
-        listEl.innerHTML = '<p style="font-size: 13px; color: #64748b; text-align: center; margin: 8px 0;">പുതിയ പെൻഡിംഗ് ഡാറ്റകൾ ഒന്നുമില്ല.</p>';
-        return;
-      }
-
-      records.forEach((item, index) => {
-        const div = document.createElement('div');
-        div.className = `item-card ${item.status === 'PASSED' ? '' : 'defect'}`;
-        div.innerHTML = `
-          <strong>${item.chassis}</strong> (${item.model})<br>
-          Status: <strong>${item.status}</strong> | Inspector: ${item.inspector}<br>
-          ${item.notes ? `Remarks: ${item.notes}<br>` : ''}
-          <small style="color: #64748b;">${item.dateTime}</small><br>
-          <button class="share-btn-sm" onclick="shareToWhatsApp(${index})">📲 WhatsApp ഗ്രൂപ്പിൽ അയക്കുക</button>
-        `;
-        listEl.appendChild(div);
-      });
-    }
-
-    // Form Submit
-    document.getElementById('pdiForm').addEventListener('submit', (e) => {
-      e.preventDefault();
-
-      const newRecord = {
-        id: Date.now(),
-        dateTime: new Date().toLocaleString(),
-        chassis: document.getElementById('chassis').value.trim().toUpperCase(),
-        model: document.getElementById('model').value.trim(),
-        inspector: document.getElementById('inspector').value.trim(),
-        status: document.getElementById('status').value,
-        notes: document.getElementById('notes').value.trim()
-      };
-
-      const records = getStoredRecords();
-      records.unshift(newRecord); // Add latest to top
-      saveStoredRecords(records);
-
-      document.getElementById('pdiForm').reset();
-
-      // Ask to share directly to WhatsApp
-      if (confirm("സേവ് ചെയ്തു! ഈ റിപ്പോർട്ട് ഇപ്പോൾത്തന്നെ WhatsApp ഗ്രൂപ്പിലേക്ക് അയക്കണമെന്നുണ്ടോ?")) {
-        const text = encodeURIComponent(getFormattedMessage(newRecord));
-        window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
-      }
-    });
-
-    // Cloud Sync
-    document.getElementById('syncBtn').addEventListener('click', async () => {
-      if (!navigator.onLine) {
-        alert("ഇന്റർനെറ്റ് കണക്ഷൻ ഇല്ല! റേഞ്ച് ഉള്ള സ്ഥലത്തു വെച്ച് ശ്രമിക്കുക.");
-        return;
-      }
-
-      const records = getStoredRecords();
-      if (records.length === 0) {
-        alert("സിങ്ക് ചെയ്യാൻ പുതിയ ഡാറ്റകളൊന്നുമില്ല.");
-        return;
-      }
-
-      const syncBtn = document.getElementById('syncBtn');
-      syncBtn.disabled = true;
-      syncBtn.innerText = "⏳ Syncing... ദയവായി കാത്തിരിക്കുക...";
-
-      let remainingRecords = [];
-
-      for (let item of records) {
-        try {
-          // 1. Google Sheets App Script
-          await fetch(SCRIPT_URL, {
+// Upload logic to Sheet & Telegram
+async function executeUpload(item){
+    // 1. Google Sheets Log
+    try{
+        await fetch(SCRIPT_URL, {
             method: 'POST',
             mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(item)
-          });
-
-          // 2. Telegram Channel Upload
-          const message = `🚗 *KTKL PDI Report*\n\n` +
-                          `📅 *Date:* ${item.dateTime}\n` +
-                          `🔢 *Chassis:* \`${item.chassis}\`\n` +
-                          `🚘 *Model:* ${item.model}\n` +
-                          `👤 *Inspector:* ${item.inspector}\n` +
-                          `📊 *Status:* *${item.status}*\n` +
-                          `📝 *Notes:* ${item.notes || 'None'}`;
-
-          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-              chat_id: CHAT_ID,
-              text: message,
-              parse_mode: 'Markdown'
+                dateTime: item.dateTime,
+                chassis: item.chassis,
+                model: item.model,
+                inspector: 'Yard Team',
+                status: 'PASSED'
             })
-          });
+        });
+    }catch(err){ console.error('Sheet sync error', err); }
 
-        } catch (err) {
-          console.error("Upload Error:", err);
-          remainingRecords.push(item);
-        }
-      }
+    // 2. Telegram PDF Document Upload
+    const caption = `🚗 *New Vehicle Inward (PDI)*\n\n` +
+                    `📅 *Date:* ${item.dateTime}\n` +
+                    `🔢 *Chassis:* \`${item.chassis}\`\n` +
+                    `🚘 *Model:* ${item.model}\n` +
+                    `📁 *File:* ${item.fileName}`;
 
-      saveStoredRecords(remainingRecords);
-      syncBtn.disabled = false;
-      syncBtn.innerText = "🔄 Sync to Sheet & Telegram";
+    const form = new FormData();
+    form.append('chat_id', CHAT_ID);
+    form.append('caption', caption);
+    form.append('parse_mode', 'Markdown');
+    
+    // Convert base64 data back to file blob
+    const byteString = atob(item.pdfBase64.split(',')[1]);
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    const blob = new Blob([ab], { type: 'application/pdf' });
+    form.append('document', blob, item.fileName);
 
-      if (remainingRecords.length === 0) {
-        alert("എല്ലാ ഡാറ്റകളും Google Sheet-ലേക്കും Telegram ചാനലിലേക്കും വിജയകരമായി അപ്‌ലോഡ് ചെയ്തു!");
-      } else {
-        alert("ചില ഡാറ്റകൾ സിങ്ക് ആയില്ല. നെറ്റ്‌വർക്ക് ഉറപ്പാക്കി വീണ്ടും ശ്രമിക്കുക.");
-      }
+    const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+        method: 'POST',
+        body: form
     });
+    if(!tgRes.ok) throw new Error('Telegram upload failed');
+}
 
-    // Initial load
-    renderPendingRecords();
-  </script>
-</body>
-</html>
+// Background Sync handler
+async function handleCloudSync(ch, m, blob, fName){
+    var reader = new FileReader();
+    reader.onload = async function(e){
+        var item = {
+            id: Date.now(),
+            dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
+            chassis: ch,
+            model: m,
+            fileName: fName,
+            pdfBase64: e.target.result
+        };
+
+        if(!navigator.onLine){
+            var p = getPending();
+            p.push(item);
+            setPending(p);
+            return;
+        }
+
+        try{
+            $("msg").textContent = "Cloud Syncing to Telegram & Sheet...";
+            await executeUpload(item);
+            $("msg").textContent = "✓ Saved & Synced to Cloud!";
+        } catch(err){
+            var p = getPending();
+            p.push(item);
+            setPending(p);
+            $("msg").textContent = "Offline/Slow Network: Saved locally for sync.";
+        }
+    };
+    reader.readAsDataURL(blob);
+}
+
+// Manual Sync Button
+async function syncPendingUploads(){
+    if(!navigator.onLine){
+        alert("ഇന്റർനെറ്റ് കണക്ഷൻ ഇല്ല! റേഞ്ച് ഉള്ള സ്ഥലത്തു വെച്ച് ശ്രമിക്കുക.");
+        return;
+    }
+    var p = getPending();
+    if(p.length === 0){
+        alert("സിങ്ക് ചെയ്യാൻ പെൻഡിംഗ് റിപ്പോർട്ടുകൾ ഒന്നുമില്ല.");
+        return;
+    }
+
+    var btn = $('syncBtn');
+    btn.disabled = true;
+    btn.textContent = "⏳ Uploading to Cloud...";
+
+    var remaining = [];
+    for(var item of p){
+        try{
+            await executeUpload(item);
+        }catch(e){
+            remaining.push(item);
+        }
+    }
+    setPending(remaining);
+    btn.disabled = false;
+    btn.innerHTML = '🔄 Sync Pending Cloud Reports (<span id="pendCnt">' + remaining.length + '</span>)';
+
+    if(remaining.length === 0){
+        alert("എല്ലാ PDI റിപ്പോർട്ടുകളും വിജയകരമായി Google Sheet-ലേക്കും Telegram-ലേക്കും അപ്‌ലോഡ് ചെയ്തു!");
+    } else {
+        alert("ചില റിപ്പോർട്ടുകൾ അപ്‌ലോഡ് ആയില്ല. നെറ്റ്‌വർക്ക് ഉറപ്പാക്കി വീണ്ടും ശ്രമിക്കുക.");
+    }
+}
+
+// ================= APP ORIGINAL LOGIC =================
+var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
+var selectedFilter = 'original';
+
+var CAT={"Nexon":["Smart","Smart+","Smart+ S","Pure","Pure S","Creative","Creative+","Creative+ S","Fearless","Fearless S","Fearless+ S","Fearless+ S Dark"],
+"Nexon EV":["Creative 45","Creative+ 45","Fearless 45","Fearless+ 45","Fearless+ S 45","Empowered 45","Empowered+ 45","Empowered+ Dark 45","Creative 30","Fearless 30","Empowered+ 30"],
+"Punch":["Pure","Pure Rhythm","Adventure","Adventure Rhythm","Adventure Sunroof","Accomplished","Accomplished Dazzle","Accomplished Sunroof","Accomplished Dazzle Sunroof","Creative","Creative Dual Tone","Creative Flagship"],
+"Punch EV":["Smart 25","Smart+ 25","Adventure 25","Adventure 35","Adventure S 35","Empowered 25","Empowered+ 25","Empowered 35","Empowered+ 35","Empowered+ S 35"],
+"Curvv":["Smart","Pure+","Pure+ S","Creative","Creative S","Creative+ S","Accomplished","Accomplished S","Accomplished+ A"],
+"Curvv EV":["Creative 45","Accomplished 45","Accomplished+ S 45","Accomplished 55","Accomplished+ S 55","Empowered+ 55","Empowered+ A 55"],
+"Harrier":["Smart","Smart (O)","Pure","Pure (O)","Pure+","Pure+ S","Pure+ S Dark","Adventure","Adventure+","Adventure+ A","Adventure+ Dark","Fearless","Fearless S","Fearless+","Fearless+ Dark"],
+"Harrier EV":["Adventure 65","Adventure+ 65","Empowered ST 75","Empowered+ 75","Empowered+ Dark 75","Stealth AWD 75"],
+"Safari":["Smart","Pure","Pure (O)","Pure+","Pure+ S","Adventure","Adventure+","Adventure+ A","Adventure+ Dark","Accomplished","Accomplished+","Accomplished+ Dark","Accomplished+ 6S"],
+"Sierra EV":["Adv 75","Emp 63","Empowered+ 75","Empowered+ AWD 75"],
+"Tiago":["XE","XM","XT","XT Rhythm","XZ+","XZ+ Dual Tone","XT NRG","XZ NRG"],
+"Tiago EV":["XE 19.2","XT 19.2","XT 24","XZ+ Tech LUX 24","XZ+ Long Range 24"],
+"Tigor":["XM","XT","XZ+","XZ+ Dual Tone","XM iCNG","XT iCNG","XZ+ iCNG"],
+"Tigor EV":["XE","XT","XZ+","XZ+ LUX"],
+"Altroz":["XE","XM","XM+","XM+ (S)","XT","XZ","XZ+","XZ+ (S)","XZ+ (O) Dark","Racer R1","Racer R2","Racer R3"]};
+function opts(sel,arr,ph){sel.innerHTML='<option value="">'+ph+'</option>'+arr.map(function(a){return '<option>'+a+'</option>'}).join('')}
+var X={};try{X=JSON.parse(localStorage.getItem("yardCat")||"{}")}catch(e){}
+Object.keys(X).forEach(function(m){CAT[m]=(CAT[m]||[]).concat(X[m].filter(function(v){return(CAT[m]||[]).indexOf(v)<0}))});
+function sv(){try{localStorage.setItem("yardCat",JSON.stringify(X))}catch(e){}}
+function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
+function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
+function onM(){$("M").value=$("ms").value}
+function pick(cam,cb,multi){var i=document.createElement("input");i.type="file";i.accept="image/*";if(cam)i.setAttribute("capture","environment");if(multi)i.multiple=true;
+i.onchange=function(){Array.from(i.files).forEach(function(f){rd(f,cb)})};i.click()}
+
+function rd(f,cb){
+    var r=new FileReader();
+    r.onload=function(e){ cb(e.target.result); };
+    r.readAsDataURL(f);
+}
+
+function setBattery(u){
+    D.battery = u;
+    $("bpv").innerHTML = '<img src="' + u + '" style="width:100%;height:100%;object-fit:contain;">';
+}
+
+function setFilter(mode){
+    selectedFilter = mode;
+    ['orig','magic','gray','bw'].forEach(function(m){
+        var b = $('f-' + m);
+        if(b) b.classList.remove('active');
+    });
+    if(mode === 'original') $('f-orig').classList.add('active');
+    if(mode === 'enhance') $('f-magic').classList.add('active');
+    if(mode === 'grayscale') $('f-gray').classList.add('active');
+    if(mode === 'bw') $('f-bw').classList.add('active');
+
+    var modal = $('cm');
+    modal.className = 'flt-' + mode;
+}
+
+function processCanvasFilter(cv, mode){
+    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.98);
+    var ctx = cv.getContext("2d");
+    var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
+    var d = imgData.data;
+
+    for (var i = 0; i < d.length; i += 4) {
+        var r = d[i], gr = d[i+1], b = d[i+2];
+
+        if(mode === 'enhance'){
+            var contrast = 1.35, brightness = 15;
+            d[i]   = Math.min(255, Math.max(0, (r - 128) * contrast + 128 + brightness));
+            d[i+1] = Math.min(255, Math.max(0, (gr - 128) * contrast + 128 + brightness));
+            d[i+2] = Math.min(255, Math.max(0, (b - 128) * contrast + 128 + brightness));
+        } else if(mode === 'grayscale'){
+            var gray = 0.299 * r + 0.587 * gr + 0.114 * b;
+            d[i] = gray; d[i+1] = gray; d[i+2] = gray;
+        } else if(mode === 'bw'){
+            var gray2 = 0.299 * r + 0.587 * gr + 0.114 * b;
+            var val = gray2 > 130 ? 255 : (gray2 * 0.7);
+            d[i] = val; d[i+1] = val; d[i+2] = val;
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return cv.toDataURL("image/jpeg", 0.98);
+}
+
+var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]],DOC=[["f22","Form 22"],["pen","Chassis Print"]];
+function card(host,store,k,n,ic,crop){var d=document.createElement("div");d.className="card";d.innerHTML='<div class="l">'+n+'</div><div class="p">'+ic+'</div><div class="b"><button>Cam</button><button class="gl">Gal</button></div>';
+var bs=d.querySelectorAll("button"),set=function(u){store[k]=u;d.querySelector(".p").innerHTML='<img src="'+u+'">'};var go=crop?function(u){ei=-2;tg=function(x){set(x)};openC(u)}:set;bs[0].onclick=function(){pick(1,go)};bs[1].onclick=function(){pick(0,go)};$(host).appendChild(d)}
+var S0='<svg viewBox="0 0 100 60">',SH='<path d="M8 40V34Q8 30 14 29L28 26L38 16Q41 13 48 13H64Q70 13 74 18L82 27L90 30Q93 31 93 36V40Z"/><path d="M42 18H48V26H34ZM52 18H64Q67 18 69 21L73 26H52Z" fill="#fff" opacity=".7"/><circle cx="27" cy="42" r="7" fill="#334155" stroke="#fff" stroke-width="1.5"/><circle cx="75" cy="42" r="7" fill="#334155" stroke="#fff" stroke-width="1.5"/>',
+FV='<path d="M22 46V36Q22 30 28 28L36 16Q40 12 50 12Q60 12 64 16L72 28Q78 30 78 36V46Z"/><path d="M38 18H62L68 27H32Z" fill="#fff" opacity=".7"/><rect x="20" y="46" width="10" height="9" rx="2"/><rect x="70" y="46" width="10" height="9" rx="2"/>',
+MR='<g transform="translate(100 0) scale(-1 1)">',
+ICON={front:S0+FV+'<circle cx="31" cy="37" r="3.5" fill="#fde047"/><circle cx="69" cy="37" r="3.5" fill="#fde047"/></svg>',
+rear:S0+FV+'<rect x="24" y="34" width="11" height="5" rx="1.5" fill="#ef4444"/><rect x="65" y="34" width="11" height="5" rx="1.5" fill="#ef4444"/></svg>',
+left:S0+SH+'</svg>',right:S0+MR+SH+'</g></svg>',
+};
+var TV='<rect x="37" y="4" width="26" height="52" rx="9"/><rect x="40" y="13" width="20" height="9" rx="2" fill="#fff" opacity=".7"/><rect x="40" y="40" width="20" height="7" rx="2" fill="#fff" opacity=".7"/><rect x="33" y="10" width="4" height="9" rx="1"/><rect x="63" y="10" width="4" height="9" rx="1"/><rect x="33" y="41" width="4" height="9" rx="1"/><rect x="63" y="41" width="4" height="9" rx="1"/><text x="50" y="33" font-size="6" text-anchor="middle" fill="#fff" opacity=".8">TOP</text>',
+mk=function(x,y,t){return '<circle cx="'+x+'" cy="'+y+'" r="9" fill="#f97316" stroke="#fff" stroke-width="1.5"/><text x="'+x+'" y="'+(y+2.5)+'" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">'+t+'</text>'};
+ICON.fl=S0+TV+mk(34,9,'FL')+'</svg>';ICON.fr=S0+TV+mk(66,9,'FR')+'</svg>';ICON.rl=S0+TV+mk(34,51,'RL')+'</svg>';ICON.rr=S0+TV+mk(66,51,'RR')+'</svg>';
+SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});DOC.forEach(function(s){card("docs",D.doc,s[0],s[1],"📄",1)});
+function gal(id,arr,edit){var c=$(id);c.innerHTML="";arr.forEach(function(u,i){var t=document.createElement("div");t.className="th";t.innerHTML='<img src="'+u+'"><button class="x">✕</button>'+(edit?'<button class="e">Edit</button>':'');
+t.querySelector(".x").onclick=function(){arr.splice(i,1);if(edit)D.ko.splice(i,1);gal(id,arr,edit)};if(edit)t.querySelector(".e").onclick=function(){ei=i;openC(D.ko[i]||u)};c.appendChild(t)})}
+function addP(u){D.add.push(u);gal("ga",D.add,0)}
+async function sticker(u){D.sticker=u;$("spv").innerHTML='<img src="'+u+'">';$("st").textContent="Scanning barcode...";
+var im=new Image();im.src=u;await new Promise(function(r){im.onload=r});var code=await scan(im);
+if(code){var m=code.match(/MAT[A-Z0-9]{14}/);$("C").value=m?m[0]:code;$("st").textContent="Chassis detected: "+$("C").value+". Select the model below."}
+else $("st").textContent="Barcode not read. Type the chassis number and pick the model manually."}
+async function scan(im){var out="",ang=[0,90,270];
+for(var a=0;a<3&&!out;a++){var c=document.createElement("canvas"),s=Math.min(1,1400/Math.max(im.width,im.height)),w=im.width*s,h=im.height*s,sw=ang[a]!=0;c.width=sw?h:w;c.height=sw?w:h;var g=c.getContext("2d");g.translate(c.width/2,c.height/2);g.rotate(ang[a]*Math.PI/180);g.drawImage(im,-w/2,-h/2,w,h);
+try{if("BarcodeDetector" in window){var r=await new BarcodeDetector({formats:["code_128","code_39","qr_code"]}).detect(c);if(r.length&&r[0].rawValue)out=r[0].rawValue}}catch(e){}
+if(!out&&window.ZXing){try{var x=await new ZXing.BrowserMultiFormatReader().decodeFromCanvas(c);if(x)out=x.getText()}catch(e){}}}
+return out.replace(/[^A-Z0-9]/gi,"").toUpperCase()}
+function box(im){var cv=document.createElement("canvas"),W=200,H=Math.round(im.naturalHeight*W/im.naturalWidth);cv.width=W;cv.height=H;var g=cv.getContext("2d");g.drawImage(im,0,0,W,H);var d=g.getImageData(0,0,W,H).data,L=function(x,y){var i=(y*W+x)*4;return(d[i]+d[i+1]+d[i+2])/3},b=0,n=0;
+for(var x=0;x<W;x+=5){b+=L(x,0)+L(x,H-1);n+=2}b/=n;
+var hit=function(v,col){var k=0,t=0;for(var j=10;j<(col?H:W)-10;j+=4){var l=col?L(v,j):L(j,v);t++;if(Math.abs(l-b)>24&&l>110)k++}return k>t*.35};
+var x0=0,x1=W-1,y0=0,y1=H-1,i;for(i=5;i<W*.4;i++)if(hit(i,1)){x0=i;break}for(i=W-6;i>W*.6;i--)if(hit(i,1)){x1=i;break}
+for(i=5;i<H*.4;i++)if(hit(i,0)){y0=i;break}for(i=H-6;i>H*.6;i--)if(hit(i,0)){y1=i;break}
+var sx=im.naturalWidth/W,sy=im.naturalHeight/H,bw=(x1-x0)*sx,bh=(y1-y0)*sy;
+if(bw<im.naturalWidth*.4||bh<im.naturalHeight*.4)return{x:im.naturalWidth*.05,y:im.naturalHeight*.05,width:im.naturalWidth*.9,height:im.naturalHeight*.9};return{x:x0*sx,y:y0*sy,width:bw,height:bh}}
+function newCk(u){ei=-1;openC(u)}
+function openC(u){
+    var i=$("ci");
+    setFilter('original');
+    $("cm").style.display="flex";
+    if(cr)cr.destroy();
+    i.onload=function(){
+        cr=new Cropper(i,{viewMode:1,autoCropArea:.92,restore:false,highlight:false,toggleDragModeOnDblclick:false,ready:function(){cr.setData(box(i))}});
+    };
+    i.src=u;
+}
+function auto(){if(cr)cr.setData(box($("ci")))}
+function closeC(){if(cr){cr.destroy();cr=null}$("cm").style.display="none"}
+
+function doneC(){
+    if(!cr)return;
+    var canvas = cr.getCroppedCanvas({maxWidth:4096, maxHeight:4096, imageSmoothingQuality:'high'});
+    var u = processCanvasFilter(canvas, selectedFilter);
+    var o = $("ci").src;
+    
+    if(ei==-2){
+        tg(u);
+    } else {
+        if(ei>=0) D.ck[ei]=u;
+        else { D.ck.push(u); D.ko.push(o); }
+        gal("gc",D.ck,1);
+    }
+    closeC();
+}
+function hd(p,t,s){p.setFillColor(15,23,42);p.rect(0,0,210,s||24,"F");p.setTextColor(255,255,255);p.setFontSize(14);p.setFont(undefined,"bold");p.text(t,14,16)}
+function img(p,u,x,y,w,h,l){p.setFont(undefined,"bold");p.setFontSize(8);p.setTextColor(71,85,105);if(l)p.text(l,x,y-2);if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,'FAST');else{p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20)}}
+
+function build(){
+    var ch=$("C").value.toUpperCase().trim(),m=$("M").value.trim();
+    if(!ch||!m){alert("Please enter Chassis Number and Vehicle Model before generating PDF.");return null}
+    var n=new Date(),p=new window.jspdf.jsPDF("p","mm","a4");
+    hd(p,"PDI REPORT");p.setTextColor(15,23,42);p.setFontSize(10);p.setFillColor(241,245,249);p.roundedRect(14,28,182,30,2,2,"F");
+    [["Chassis Number:",ch],["Vehicle Model:",m],["Inspection Date:",n.toLocaleDateString("en-GB")+" "+n.toLocaleTimeString("en-IN")]].forEach(function(r,i){p.setFont(undefined,"bold");p.text(r[0],18,36+i*8);p.setFont(undefined,"normal");p.text(r[1],54,36+i*8)});
+    p.setFont(undefined,"bold");p.setFontSize(11);p.setTextColor(2,132,199);p.text("Vehicle Photos",14,66);
+    var L=SIX.map(function(s,i){return[D.six[s[0]],(i+1)+". "+s[1]]}).concat(D.add.map(function(u,i){return[u,"Additional Photo "+(i+1)]}));
+    L.forEach(function(it,i){var x=14+(i%3)*62,y;if(i<12)y=72+Math.floor(i/3)*50;else{var j=i-12;if(j%15==0){p.addPage();hd(p,"PDI REPORT",20)}y=36+Math.floor((j%15)/3)*50}img(p,it[0],x,y,58,42,it[1])});
+
+    if(D.sticker||D.doc.f22||D.doc.pen||D.battery){
+        p.addPage();hd(p,"PDI REPORT");p.setFontSize(11);p.setTextColor(2,132,199);p.text("2. Documents & Battery Inspection: "+ch,14,34);
+        if(D.sticker)img(p,D.sticker,14,42,86,70,"Windshield Barcode Sticker");
+        if(D.battery)img(p,D.battery,110,42,86,70,"LV Battery Photo");
+        if(D.doc.f22)img(p,D.doc.f22,14,120,86,110,"Form 22 Copy");
+        if(D.doc.pen)img(p,D.doc.pen,110,120,86,60,"Chassis Print / Impression");
+    }
+
+    D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"")});
+    return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",ch:ch,m:m};
+}
+
+async function out(share){
+    var b=build();if(!b)return;
+    var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
+
+    // Auto-trigger background Cloud upload to Google Sheets & Telegram
+    handleCloudSync(b.ch, b.m, blob, b.f);
+
+    // Standard Download / Mobile Share
+    if(share){
+        try{
+            if(navigator.canShare&&navigator.canShare({files:[f]})){
+                await navigator.share({files:[f],title:"PDI Report - "+b.f});
+                $("msg").textContent="Shared: "+b.f;
+                return;
+            }
+        }catch(e){if(e.name=="AbortError")return}
+    }
+
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=b.f;
+    a.click();
+    $("msg").textContent="PDF Saved: "+b.f;
+}
+</script></body></html>
