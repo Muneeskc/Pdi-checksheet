@@ -47,6 +47,13 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 .cf button{background:#334155;font-size:12px;padding:8px 10px}
 .cf .filter-btn{border:1px solid var(--bd);background:var(--in);color:var(--tx)}
 .cf .filter-btn.active{background:#0284c7;color:#fff;border-color:#38bdf8;font-weight:bold}
+
+/* തത്സമയം ക്രോപ്പർ പ്രിവ്യൂവിൽ കാണാനുള്ള CSS ഫിൽട്ടറുകൾ */
+.filter-preview-original img { filter: none !important; }
+.filter-preview-enhance img { filter: contrast(1.35) brightness(1.1) saturate(1.2) !important; }
+.filter-preview-grayscale img { filter: grayscale(100%) contrast(1.2) !important; }
+.filter-preview-bw img { filter: grayscale(100%) contrast(2.5) brightness(1.15) !important; }
+
 .cropper-container{direction:ltr;font-size:0;line-height:0;position:relative;touch-action:none;user-select:none}
 .cropper-container img{display:block;height:100%;max-height:none!important;max-width:none!important;min-height:0!important;min-width:0!important;width:100%}
 .cropper-canvas,.cropper-crop-box,.cropper-drag-box,.cropper-modal,.cropper-wrap-box{inset:0;position:absolute}
@@ -88,14 +95,14 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📸 Additional Inspection Photos</span><i>Optional (Multi-select)</i></div>
 <div class="box" style="text-align:center"><div class="row"><button onclick="pick(1,addP)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP,1)">🖼️ From Gallery</button></div><div class="gal" id="ga"></div></div>
 
-<!-- ചെക്ക് ലിസ്റ്റ് വിത്ത് ഡോക്യുമെന്റ് സ്കാനർ & എൻഹാൻസ് -->
+<!-- ചെക്ക് ലിസ്റ്റ് വിത്ത് ലൈവ് പ്രിവ്യൂ ഡോക്യുമെന്റ് സ്കാനർ -->
 <div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; Enhance</i></div>
 <div class="box" style="text-align:center">
     <div class="row"><button onclick="pick(1,newCk)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk)">🖼️ From Gallery</button></div>
     <div class="gal" id="gc"></div>
 </div>
 
-<!-- എൽവി ബാറ്ററി ഫോട്ടോ (സാധാരണ ഫോട്ടോ അപ്‌ലോഡ് മാത്രം) -->
+<!-- എൽവി ബാറ്ററി ഫോട്ടോ സെക്ഷൻ -->
 <div class="sec"><span>🔋 LV Battery Photo</span><i>Inspection</i></div>
 <div class="box" style="text-align:center">
     <div class="pv" id="bpv" style="height:120px;">No Battery Photo Uploaded</div>
@@ -111,12 +118,12 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <p id="msg" style="font-size:12px;color:var(--mu)"></p>
 </div>
 
-<!-- ക്രോപ്പർ & ഫിൽട്ടർ സ്ക്രീൻ (ചെക്ക് ലിസ്റ്റിന് വേണ്ടി) -->
+<!-- ക്രോപ്പർ & ലൈവ് പ്രിവ്യൂ ഫിൽട്ടർ സ്ക്രീൻ -->
 <div id="cm">
     <div class="ch"><span>Checklist Scanner &amp; Enhance</span><button style="background:#ef4444" onclick="closeC()">✕ Cancel</button></div>
-    <div class="cb"><img id="ci"></div>
+    <div class="cb filter-preview-original" id="cropperWrapper"><img id="ci"></div>
     <div class="cf">
-        <!-- 4 എൻഹാൻസ് ഓപ്ഷനുകൾ -->
+        <!-- 4 ലൈവ് എൻഹാൻസ് ഓപ്ഷനുകൾ -->
         <div style="text-align:center;font-size:12px;color:var(--mu);font-weight:bold;">Enhance Filter:</div>
         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
             <button type="button" class="filter-btn active" id="f-orig" onclick="setFilter('original')">Original</button>
@@ -124,7 +131,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
             <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
             <button type="button" class="filter-btn" id="f-bw" onclick="setFilter('bw')">Pure White (Scan)</button>
         </div>
-        <!-- റൊട്ടേഷൻ & ഡൺ ബട്ടൺ -->
+        <!-- കൺട്രോളുകൾ & ഡൺ ബട്ടൺ -->
         <div style="display:flex;gap:6px;justify-content:space-between;align-items:center;margin-top:6px;">
             <div style="display:flex;gap:5px;">
                 <button onclick="cr.rotate(-90)">↺ Left</button>
@@ -167,13 +174,13 @@ function pick(cam,cb,multi){var i=document.createElement("input");i.type="file";
 i.onchange=function(){Array.from(i.files).forEach(function(f){rd(f,cb)})};i.click()}
 function rd(f,cb){var r=new FileReader();r.onload=function(e){var im=new Image();im.onload=function(){var s=Math.min(1,2000/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.88))};im.src=e.target.result};r.readAsDataURL(f)}
 
-/* LV Battery Upload (Simple Preview) */
+/* Battery Photo Handling */
 function setBattery(u){
     D.battery = u;
     $("bpv").innerHTML = '<img src="' + u + '" style="width:100%;height:100%;object-fit:contain;">';
 }
 
-/* Filter Selection for Checklist */
+/* തത്സമയം പ്രിവ്യൂവിൽ ഫിൽട്ടർ മാറ്റുന്ന ഫംഗ്ഷൻ */
 function setFilter(mode){
     selectedFilter = mode;
     ['orig','magic','gray','bw'].forEach(function(m){
@@ -184,9 +191,13 @@ function setFilter(mode){
     if(mode === 'enhance') $('f-magic').classList.add('active');
     if(mode === 'grayscale') $('f-gray').classList.add('active');
     if(mode === 'bw') $('f-bw').classList.add('active');
+
+    // സ്ക്രീനിൽ തന്നെ ഫിൽട്ടർ മാറ്റുന്നു
+    var wrap = $('cropperWrapper');
+    wrap.className = 'cb filter-preview-' + mode;
 }
 
-/* Image Filter Processing */
+/* യഥാർത്ഥ ഇമേജ് ഡാറ്റയിലേക്ക് ഫിൽട്ടർ നൽകി ഔട്ട്പുട്ട് ആക്കൽ */
 function processCanvasFilter(cv, mode){
     if(mode === 'original') return cv.toDataURL("image/jpeg", 0.92);
     var ctx = cv.getContext("2d");
@@ -197,16 +208,19 @@ function processCanvasFilter(cv, mode){
         var r = d[i], gr = d[i+1], b = d[i+2];
 
         if(mode === 'enhance'){
+            // Magic Color: ഷാഡോ മാറ്റി ലൈറ്റും തെളിച്ചവും കൂട്ടുന്നു
             var contrast = 1.35, brightness = 15;
             d[i]   = Math.min(255, Math.max(0, (r - 128) * contrast + 128 + brightness));
             d[i+1] = Math.min(255, Math.max(0, (gr - 128) * contrast + 128 + brightness));
             d[i+2] = Math.min(255, Math.max(0, (b - 128) * contrast + 128 + brightness));
         } else if(mode === 'grayscale'){
+            // ഗ്രേ സ്കെയിൽ മോഡ്
             var gray = 0.299 * r + 0.587 * gr + 0.114 * b;
             d[i] = gray; d[i+1] = gray; d[i+2] = gray;
         } else if(mode === 'bw'){
+            // Pure White: സ്കാൻ ചെയ്തതുപോലെ പേപ്പർ പൂർണ്ണമായി വെളുപ്പിക്കുന്നു
             var gray2 = 0.299 * r + 0.587 * gr + 0.114 * b;
-            var val = gray2 > 125 ? 255 : 0;
+            var val = gray2 > 130 ? 255 : (gray2 * 0.7);
             d[i] = val; d[i+1] = val; d[i+2] = val;
         }
     }
