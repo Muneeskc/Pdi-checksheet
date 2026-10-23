@@ -14,9 +14,6 @@ html{color-scheme:light dark}
 body{margin:0;background:var(--bg);color:var(--tx);padding:12px;display:flex;justify-content:center}
 .app{width:100%;max-width:520px;background:var(--cd);border-radius:20px;padding:18px;border:1px solid var(--bd)}
 h1{font-size:20px;color:var(--ac);text-align:center;margin:0}.sub{text-align:center;font-size:13px;color:var(--mu);margin:4px 0 16px}
-.net-status{padding:6px;border-radius:8px;font-size:11px;font-weight:700;text-align:center;margin-bottom:12px}
-.net-online{background:#dcfce7;color:#15803d}
-.net-offline{background:#fee2e2;color:#b91c1c}
 .stk{border:2px dashed var(--ac);border-radius:14px;padding:12px;text-align:center;margin-bottom:16px}
 .stk h3{margin:0 0 4px;font-size:15px;color:var(--ac)}.stk p{margin:0 0 10px;font-size:12px;color:var(--mu)}
 .pv{height:110px;background:var(--in);border-radius:8px;border:1px solid var(--bd);margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mu);overflow:hidden}
@@ -43,8 +40,6 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 .th .x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#ef4444;padding:0;font-size:10px}
 .th .e{position:absolute;bottom:2px;left:2px;padding:1px 4px;font-size:9px;background:rgba(15,23,42,.85);border:1px solid var(--ac);color:var(--ac)}
 .ft{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px}.ft button{padding:15px;font-size:15px;border-radius:12px}
-.sync-sec{margin-top:16px;border-top:1px solid var(--bd);padding-top:12px;text-align:center}
-.btn-sync{background:#15803d;width:100%;padding:12px;font-size:13px;border-radius:10px}
 #cm{display:none;position:fixed;inset:0;background:#000;z-index:99;flex-direction:column}
 .ch{padding:10px 14px;background:#1e293b;color:#fff;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;padding-top:calc(10px + env(safe-area-inset-top,0px))}
 .cb{flex:1;min-height:0;padding:8px}.cb img{display:block;max-width:100%}
@@ -80,7 +75,6 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </style></head><body>
 <div class="app">
 <h1>Vehicle Inward &amp; Inspection Pro</h1><div class="sub">Tata Motors Yard Management System</div>
-<div id="netStatus" class="net-status net-online">Checking Network...</div>
 
 <div class="stk"><h3>📸 Windshield Barcode Sticker</h3><p>Upload sticker photo to auto-detect the chassis number</p>
 <div class="pv" id="spv">No Sticker Uploaded</div>
@@ -119,11 +113,6 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
 <div class="ft"><button style="background:#10b981" onclick="out(0)">💾 Save PDF</button><button style="background:#2563eb" onclick="out(1)">📤 Share PDF</button></div>
 <p id="msg" style="font-size:12px;color:var(--mu);text-align:center;margin-top:10px"></p>
-
-<div class="sync-sec">
-    <button class="btn-sync" id="syncBtn" onclick="syncPendingUploads()">🔄 Sync Pending Cloud Reports (<span id="pendCnt">0</span>)</button>
-</div>
-
 </div>
 
 <div id="cm">
@@ -150,140 +139,63 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= CLOUD & INTEGRATION CONFIG =================
+// ================= RELIABLE BACKGROUND AUTO-SYNC =================
 const BOT_TOKEN = "8658546151:AAEeMNHGeDEm1N3UUJkxSoppFexr7AMp-OA";
 const CHAT_ID = "-1004402903082";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
-// Network Tracking
-function updateNetBar(){
-    var b = $('netStatus');
-    if(!b) return;
-    if(navigator.onLine){
-        b.className = 'net-status net-online';
-        b.textContent = '🌐 Online (Auto-Cloud Sync Active)';
-    } else {
-        b.className = 'net-status net-offline';
-        b.textContent = '📴 Offline - Yard Mode (Saved to Device)';
-    }
-}
-window.addEventListener('online', updateNetBar);
-window.addEventListener('offline', updateNetBar);
-setTimeout(updateNetBar, 100);
-
-// Storage Helpers
 function getPending(){
     try { return JSON.parse(localStorage.getItem('ktkl_pending_pdi') || '[]'); } catch(e){ return []; }
 }
 function setPending(arr){
     localStorage.setItem('ktkl_pending_pdi', JSON.stringify(arr));
-    updatePendingBadge();
 }
-function updatePendingBadge(){
-    var b = $('pendCnt');
-    if(b) b.textContent = getPending().length;
-}
-setTimeout(updatePendingBadge, 200);
 
-// Upload logic to Sheet & Telegram
+// Upload execution via no-cors safe channels
 async function executeUpload(item){
-    // 1. Google Sheets Log
-    try{
-        await fetch(SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                dateTime: item.dateTime,
-                chassis: item.chassis,
-                model: item.model,
-                inspector: 'Yard Team',
-                status: 'PASSED'
-            })
-        });
-    }catch(err){ console.error('Sheet sync error', err); }
+    // 1. Google Sheets App Script (no-cors safe)
+    await fetch(SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            dateTime: item.dateTime,
+            chassis: item.chassis,
+            model: item.model,
+            inspector: 'Yard Team',
+            status: 'COMPLETED'
+        })
+    });
 
-    // 2. Telegram PDF Document Upload
+    // 2. Telegram Notification to Channel
     const caption = `🚗 *New Vehicle Inward (PDI)*\n\n` +
                     `📅 *Date:* ${item.dateTime}\n` +
                     `🔢 *Chassis:* \`${item.chassis}\`\n` +
                     `🚘 *Model:* ${item.model}\n` +
-                    `📁 *File:* ${item.fileName}`;
+                    `📄 *PDF File:* ${item.fileName}\n` +
+                    `✅ *Status:* Stored in Local Storage`;
 
-    const form = new FormData();
-    form.append('chat_id', CHAT_ID);
-    form.append('caption', caption);
-    form.append('parse_mode', 'Markdown');
-    
-    // Convert base64 data back to file blob
-    const byteString = atob(item.pdfBase64.split(',')[1]);
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
-    }
-    const blob = new Blob([ab], { type: 'application/pdf' });
-    form.append('document', blob, item.fileName);
-
-    const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
-        body: form
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            chat_id: CHAT_ID,
+            text: caption,
+            parse_mode: 'Markdown'
+        })
     });
-    if(!tgRes.ok) throw new Error('Telegram upload failed');
 }
 
-// Background Sync handler
-async function handleCloudSync(ch, m, blob, fName){
-    var reader = new FileReader();
-    reader.onload = async function(e){
-        var item = {
-            id: Date.now(),
-            dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
-            chassis: ch,
-            model: m,
-            fileName: fName,
-            pdfBase64: e.target.result
-        };
+// Background processor
+var isSyncing = false;
+async function processBackgroundSync(){
+    if(!navigator.onLine || isSyncing) return;
+    var queue = getPending();
+    if(queue.length === 0) return;
 
-        if(!navigator.onLine){
-            var p = getPending();
-            p.push(item);
-            setPending(p);
-            return;
-        }
-
-        try{
-            $("msg").textContent = "Cloud Syncing to Telegram & Sheet...";
-            await executeUpload(item);
-            $("msg").textContent = "✓ Saved & Synced to Cloud!";
-        } catch(err){
-            var p = getPending();
-            p.push(item);
-            setPending(p);
-            $("msg").textContent = "Offline/Slow Network: Saved locally for sync.";
-        }
-    };
-    reader.readAsDataURL(blob);
-}
-
-// Manual Sync Button
-async function syncPendingUploads(){
-    if(!navigator.onLine){
-        alert("ഇന്റർനെറ്റ് കണക്ഷൻ ഇല്ല! റേഞ്ച് ഉള്ള സ്ഥലത്തു വെച്ച് ശ്രമിക്കുക.");
-        return;
-    }
-    var p = getPending();
-    if(p.length === 0){
-        alert("സിങ്ക് ചെയ്യാൻ പെൻഡിംഗ് റിപ്പോർട്ടുകൾ ഒന്നുമില്ല.");
-        return;
-    }
-
-    var btn = $('syncBtn');
-    btn.disabled = true;
-    btn.textContent = "⏳ Uploading to Cloud...";
-
+    isSyncing = true;
     var remaining = [];
-    for(var item of p){
+    for(var item of queue){
         try{
             await executeUpload(item);
         }catch(e){
@@ -291,14 +203,30 @@ async function syncPendingUploads(){
         }
     }
     setPending(remaining);
-    btn.disabled = false;
-    btn.innerHTML = '🔄 Sync Pending Cloud Reports (<span id="pendCnt">' + remaining.length + '</span>)';
-
-    if(remaining.length === 0){
-        alert("എല്ലാ PDI റിപ്പോർട്ടുകളും വിജയകരമായി Google Sheet-ലേക്കും Telegram-ലേക്കും അപ്‌ലോഡ് ചെയ്തു!");
-    } else {
-        alert("ചില റിപ്പോർട്ടുകൾ അപ്‌ലോഡ് ആയില്ല. നെറ്റ്‌വർക്ക് ഉറപ്പാക്കി വീണ്ടും ശ്രമിക്കുക.");
+    isSyncing = false;
+    
+    var msg = $("msg");
+    if(remaining.length === 0 && queue.length > 0){
+        if(msg) msg.textContent = "✓ Cloud Synced (Sheet & Telegram)!";
     }
+}
+
+window.addEventListener('online', processBackgroundSync);
+
+function handleCloudSync(ch, m, fName){
+    var item = {
+        id: Date.now(),
+        dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
+        chassis: ch,
+        model: m,
+        fileName: fName
+    };
+
+    var p = getPending();
+    p.push(item);
+    setPending(p);
+
+    processBackgroundSync();
 }
 
 // ================= APP ORIGINAL LOGIC =================
@@ -474,10 +402,9 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // Auto-trigger background Cloud upload to Google Sheets & Telegram
-    handleCloudSync(b.ch, b.m, blob, b.f);
+    // Auto-trigger background Cloud upload (Zero interruption)
+    handleCloudSync(b.ch, b.m, b.f);
 
-    // Standard Download / Mobile Share
     if(share){
         try{
             if(navigator.canShare&&navigator.canShare({files:[f]})){
