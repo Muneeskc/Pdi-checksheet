@@ -139,9 +139,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= RELIABLE BACKGROUND AUTO-SYNC =================
-const BOT_TOKEN = "8658546151:AAEeMNHGeDEm1N3UUJkxSoppFexr7AMp-OA";
-const CHAT_ID = "-1004402903082";
+// ================= CLOUD AUTO-SYNC (DRIVE, SHEET & TELEGRAM) =================
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
 function getPending(){
@@ -151,9 +149,8 @@ function setPending(arr){
     localStorage.setItem('ktkl_pending_pdi', JSON.stringify(arr));
 }
 
-// Upload execution via no-cors safe channels
+// PDF അടക്കം Google Apps Script-ലേക്ക് ബാക്ക്ഗ്രൗണ്ടിൽ അയക്കുന്നു
 async function executeUpload(item){
-    // 1. Google Sheets App Script (no-cors safe)
     await fetch(SCRIPT_URL, {
         method: 'POST',
         mode: 'no-cors',
@@ -163,30 +160,13 @@ async function executeUpload(item){
             chassis: item.chassis,
             model: item.model,
             inspector: 'Yard Team',
-            status: 'COMPLETED'
-        })
-    });
-
-    // 2. Telegram Notification to Channel
-    const caption = `🚗 *New Vehicle Inward (PDI)*\n\n` +
-                    `📅 *Date:* ${item.dateTime}\n` +
-                    `🔢 *Chassis:* \`${item.chassis}\`\n` +
-                    `🚘 *Model:* ${item.model}\n` +
-                    `📄 *PDF File:* ${item.fileName}\n` +
-                    `✅ *Status:* Stored in Local Storage`;
-
-    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            chat_id: CHAT_ID,
-            text: caption,
-            parse_mode: 'Markdown'
+            status: 'COMPLETED',
+            fileName: item.fileName,
+            pdfBase64: item.pdfBase64
         })
     });
 }
 
-// Background processor
 var isSyncing = false;
 async function processBackgroundSync(){
     if(!navigator.onLine || isSyncing) return;
@@ -207,26 +187,33 @@ async function processBackgroundSync(){
     
     var msg = $("msg");
     if(remaining.length === 0 && queue.length > 0){
-        if(msg) msg.textContent = "✓ Cloud Synced (Sheet & Telegram)!";
+        if(msg) msg.textContent = "✓ Synced to Drive, Sheet & Telegram!";
     }
 }
 
+// നെറ്റ്‌വർക്ക് തിരികെ കിട്ടുമ്പോൾ തനിയെ അപ്‌ലോഡ് ആകുന്നു
 window.addEventListener('online', processBackgroundSync);
 
-function handleCloudSync(ch, m, fName){
-    var item = {
-        id: Date.now(),
-        dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
-        chassis: ch,
-        model: m,
-        fileName: fName
+// സേവ് ചെയ്യുമ്പോൾ തന്നെ ക്ലൗഡിലേക്ക് ഷെഡ്യൂൾ ചെയ്യുന്നു
+function handleCloudSync(ch, m, blob, fName){
+    var reader = new FileReader();
+    reader.onload = async function(e){
+        var item = {
+            id: Date.now(),
+            dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
+            chassis: ch,
+            model: m,
+            fileName: fName,
+            pdfBase64: e.target.result
+        };
+
+        var p = getPending();
+        p.push(item);
+        setPending(p);
+
+        processBackgroundSync();
     };
-
-    var p = getPending();
-    p.push(item);
-    setPending(p);
-
-    processBackgroundSync();
+    reader.readAsDataURL(blob);
 }
 
 // ================= APP ORIGINAL LOGIC =================
@@ -402,8 +389,8 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // Auto-trigger background Cloud upload (Zero interruption)
-    handleCloudSync(b.ch, b.m, b.f);
+    // 100% Background Cloud Sync (Drive, Sheet & Telegram)
+    handleCloudSync(b.ch, b.m, blob, b.f);
 
     if(share){
         try{
