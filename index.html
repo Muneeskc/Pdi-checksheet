@@ -154,9 +154,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= ROBUST OFFLINE INDEXEDDB & AUTO TELEGRAM SYNC =================
-const TG_BOT_TOKEN = "8658546151:AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
-const TG_CHAT_ID = "-1004402903082";
+// ================= SECURE CLOUD SYNC (NO BOT TOKEN IN GITHUB) =================
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
 function openDB() {
@@ -198,58 +196,24 @@ async function removeFromOfflineDB(id) {
     });
 }
 
-// Base64-ൽ നിന്ന് Blob ഉണ്ടാക്കുന്നു
-function b64toBlob(b64Data) {
-    const parts = b64Data.split(';base64,');
-    const contentType = parts[0].split(':')[1];
-    const raw = window.atob(parts[1]);
-    const uInt8Array = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; ++i) {
-        uInt8Array[i] = raw.charCodeAt(i);
-    }
-    return new Blob([uInt8Array], { type: contentType });
-}
-
-// സിങ്ക് ചെയ്യാനുള്ള ഫംഗ്ഷൻ
+// ഗൂഗിൾ സ്ക്രിപ്റ്റിലേക്ക് നേരിട്ട് അയക്കുന്നു (അവിടെനിന്ന് ടെലിഗ്രാമിലേക്കും ഷീറ്റിലേക്കും പോകും)
 async function executeUpload(item) {
-    // 1. Google Sheet Sync
-    try {
-        await fetch(SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                dateTime: item.dateTime,
-                chassis: item.chassis,
-                model: item.model,
-                inspector: 'Yard Team',
-                status: 'COMPLETED',
-                fileName: item.fileName
-            })
-        });
-    } catch(e) { console.error("Sheet Sync error:", e); }
-
-    // 2. Telegram SendDocument
-    const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
-                    "📅 Date: " + item.dateTime + "\n" +
-                    "🔢 Chassis: " + item.chassis + "\n" +
-                    "🚘 Model: " + item.model + "\n" +
-                    "👤 Inspector: Yard Team\n" +
-                    "📁 File: " + item.fileName;
-
-    const pdfBlob = b64toBlob(item.pdfBase64);
-    const formData = new FormData();
-    formData.append("chat_id", TG_CHAT_ID);
-    formData.append("caption", caption);
-    formData.append("document", pdfBlob, item.fileName);
-
-    const res = await fetch("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/sendDocument", {
-        method: "POST",
-        body: formData
+    const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({
+            dateTime: item.dateTime,
+            chassis: item.chassis,
+            model: item.model,
+            inspector: 'Yard Team',
+            status: 'COMPLETED',
+            fileName: item.fileName,
+            pdfBase64: item.pdfBase64
+        })
     });
 
     if (!res.ok) {
-        throw new Error("Telegram API Upload failed");
+        throw new Error("Cloud Upload failed");
     }
 }
 
@@ -263,23 +227,23 @@ async function processBackgroundSync() {
 
         isSyncing = true;
         var msg = $("msg");
-        if (msg) msg.textContent = "⏳ Uploading " + queue.length + " pending report(s) to Cloud...";
+        if (msg) msg.textContent = "⏳ Uploading " + queue.length + " report(s) to Cloud...";
 
         for (var item of queue) {
             try {
                 await executeUpload(item);
                 await removeFromOfflineDB(item.id);
             } catch (err) {
-                console.error("Upload retry failed for item:", item.id, err);
+                console.error("Upload retry failed:", err);
                 isSyncing = false;
-                return; // നെറ്റ് തടസ്സപ്പെട്ടാൽ അടുത്ത റൗണ്ടിലേക്ക് നിർത്തുന്നു
+                return;
             }
         }
         
         isSyncing = false;
         const remaining = await getOfflineQueue();
         if (remaining.length === 0) {
-            if (msg) msg.textContent = "✓ All Offline Reports Synced to Telegram & Sheet!";
+            if (msg) msg.textContent = "✓ All Reports Synced to Telegram & Sheet!";
         } else {
             if (msg) msg.textContent = "⚠️ " + remaining.length + " report(s) pending sync.";
         }
@@ -288,14 +252,13 @@ async function processBackgroundSync() {
     }
 }
 
-// നെറ്റ് വരുമ്പോഴും, സ്ക്രീൻ തുറക്കുമ്പോഴും, ഇടയ്ക്കിടയ്ക്കും സിങ്ക് ഓൺ ആകും
 window.addEventListener('online', processBackgroundSync);
 window.addEventListener('load', processBackgroundSync);
 window.addEventListener('focus', processBackgroundSync);
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') processBackgroundSync();
 });
-setInterval(processBackgroundSync, 5000); // ഓരോ 5 സെക്കൻഡിലും നെറ്റ് ഉണ്ടെങ്കിൽ ചെക്ക് ചെയ്യും
+setInterval(processBackgroundSync, 5000);
 
 async function handleCloudSync(ch, m, blob, fName) {
     var reader = new FileReader();
@@ -306,7 +269,7 @@ async function handleCloudSync(ch, m, blob, fName) {
             chassis: ch,
             model: m,
             fileName: fName,
-            pdfBase64: e.target.result // Base64 ആയി സൂക്ഷിക്കുന്നു (100% സുരക്ഷിതം)
+            pdfBase64: e.target.result
         };
 
         try {
