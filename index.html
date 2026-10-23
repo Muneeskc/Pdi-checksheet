@@ -76,7 +76,6 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="box"><label>1. Select Tata Model</label><select id="ms" onchange="onM()"><option value="">-- Choose Vehicle Model --</option></select>
 <div class="row" style="margin:-2px 0 10px"><input type="text" id="nm" placeholder="New model name" style="margin:0"><button onclick="addM()">＋ Add</button></div>
 
-
 <input type="text" id="M" placeholder="Model" style="margin:0"></div>
 
 <label>Chassis Number (17 Digits)</label>
@@ -90,6 +89,26 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📑 Checklist (Auto-Crop &amp; Manual Adjust)</span><i>Document Scanner</i></div>
 <div class="box" style="text-align:center"><div class="row"><button onclick="pick(1,newCk)">📷 Snap Page</button><button class="gl" onclick="pick(0,newCk)">🖼️ From Gallery</button></div><div class="gal" id="gc"></div></div>
 
+<!-- എൽവി ബാറ്ററി ഫോട്ടോ & സ്കാനർ എൻഹാൻസ് ഓപ്ഷനുകൾ -->
+<div class="sec"><span>🔋 LV Battery Photo &amp; Enhancement</span><i>Scanner Options</i></div>
+<div class="box" style="text-align:center">
+    <div class="row">
+        <button onclick="pick(1,handleBatteryPhoto)">📷 Snap Battery</button>
+        <button class="gl" onclick="pick(0,handleBatteryPhoto)">🖼️ From Gallery</button>
+    </div>
+    
+    <div id="batteryPreviewBox" style="display:none;margin-top:12px;">
+        <canvas id="batteryCanvas" style="max-width:100%;border-radius:8px;border:1px solid var(--bd);box-shadow:0 2px 4px rgba(0,0,0,0.2);"></canvas>
+        <div style="font-size:12px;color:var(--mu);margin:8px 0 4px;font-weight:600">Enhance Document Look:</div>
+        <div class="row" style="flex-wrap:wrap;gap:6px">
+            <button type="button" class="gl" style="padding:6px 10px;font-size:11px" onclick="applyEnhancement('original')">Original</button>
+            <button type="button" style="padding:6px 10px;font-size:11px;background:#0284c7" onclick="applyEnhancement('enhance')">⚡ Magic Color</button>
+            <button type="button" class="gl" style="padding:6px 10px;font-size:11px" onclick="applyEnhancement('grayscale')">Grayscale</button>
+            <button type="button" style="padding:6px 10px;font-size:11px;background:#334155" onclick="applyEnhancement('bw')">Pure White</button>
+        </div>
+    </div>
+</div>
+
 <div class="sec"><span>📋 Other Documents</span><i>Optional</i></div><div class="g2" id="docs"></div>
 
 <div class="ft"><button style="background:#10b981" onclick="out(0)">💾 Save PDF</button><button style="background:#2563eb" onclick="out(1)">📤 Share PDF</button></div>
@@ -101,7 +120,9 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="cf"><div style="display:flex;gap:6px;flex-wrap:wrap"><button onclick="cr.rotate(-90)">↺ Left</button><button onclick="cr.rotate(90)">↻ Right</button><button style="background:#0284c7" onclick="auto()">⚡ Re-Detect</button><button onclick="cr.reset()">Full</button></div><button style="background:#10b981;font-size:13px" onclick="doneC()">✓ Done Crop</button></div></div>
 
 <script>
-var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null},cr=null,ei=-1,tg=null;
+var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
+var originalBatteryImg = null;
+
 var CAT={"Nexon":["Smart","Smart+","Smart+ S","Pure","Pure S","Creative","Creative+","Creative+ S","Fearless","Fearless S","Fearless+ S","Fearless+ S Dark"],
 "Nexon EV":["Creative 45","Creative+ 45","Fearless 45","Fearless+ 45","Fearless+ S 45","Empowered 45","Empowered+ 45","Empowered+ Dark 45","Creative 30","Fearless 30","Empowered+ 30"],
 "Punch":["Pure","Pure Rhythm","Adventure","Adventure Rhythm","Adventure Sunroof","Accomplished","Accomplished Dazzle","Accomplished Sunroof","Accomplished Dazzle Sunroof","Creative","Creative Dual Tone","Creative Flagship"],
@@ -123,18 +144,68 @@ Object.keys(X).forEach(function(m){CAT[m]=(CAT[m]||[]).concat(X[m].filter(functi
 function sv(){try{localStorage.setItem("yardCat",JSON.stringify(X))}catch(e){}}
 function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
 function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
-function addV(){var m=$("ms").value,v=$("nv").value.trim();if(!m){alert("Select a model first");return}if(!v)return;if(CAT[m].indexOf(v)<0){CAT[m].push(v);(X[m]=X[m]||[]).push(v);sv()}opts($("vs"),CAT[m],"-- Choose Variant --");$("vs").value=v;$("V").value=v;$("nv").value=""}
 function onM(){$("M").value=$("ms").value}
 function pick(cam,cb,multi){var i=document.createElement("input");i.type="file";i.accept="image/*";if(cam)i.setAttribute("capture","environment");if(multi)i.multiple=true;
 i.onchange=function(){Array.from(i.files).forEach(function(f){rd(f,cb)})};i.click()}
 function rd(f,cb){var r=new FileReader();r.onload=function(e){var im=new Image();im.onload=function(){var s=Math.min(1,2000/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=im.width*s;c.height=im.height*s;c.getContext("2d").drawImage(im,0,0,c.width,c.height);cb(c.toDataURL("image/jpeg",.88))};im.src=e.target.result};r.readAsDataURL(f)}
+
+/* LV Battery Photo Handling & Enhancement Logic */
+function handleBatteryPhoto(u){
+    var im = new Image();
+    im.onload = function(){
+        originalBatteryImg = im;
+        var cv = $("batteryCanvas");
+        var s = Math.min(1, 1400 / Math.max(im.width, im.height));
+        cv.width = im.width * s;
+        cv.height = im.height * s;
+        var g = cv.getContext("2d");
+        g.drawImage(im, 0, 0, cv.width, cv.height);
+        D.battery = cv.toDataURL("image/jpeg", 0.90);
+        $("batteryPreviewBox").style.display = "block";
+    };
+    im.src = u;
+}
+
+function applyEnhancement(mode){
+    if(!originalBatteryImg) return;
+    var cv = $("batteryCanvas");
+    var g = cv.getContext("2d");
+    g.drawImage(originalBatteryImg, 0, 0, cv.width, cv.height);
+
+    if(mode === 'original'){
+        D.battery = cv.toDataURL("image/jpeg", 0.90);
+        return;
+    }
+
+    var imgData = g.getImageData(0, 0, cv.width, cv.height);
+    var d = imgData.data;
+
+    for (var i = 0; i < d.length; i += 4) {
+        var r = d[i], gr = d[i+1], b = d[i+2];
+
+        if(mode === 'enhance'){
+            var contrast = 1.35, brightness = 15;
+            d[i]   = Math.min(255, Math.max(0, (r - 128) * contrast + 128 + brightness));
+            d[i+1] = Math.min(255, Math.max(0, (gr - 128) * contrast + 128 + brightness));
+            d[i+2] = Math.min(255, Math.max(0, (b - 128) * contrast + 128 + brightness));
+        } else if(mode === 'grayscale'){
+            var gray = 0.299 * r + 0.587 * gr + 0.114 * b;
+            d[i] = gray; d[i+1] = gray; d[i+2] = gray;
+        } else if(mode === 'bw'){
+            var gray2 = 0.299 * r + 0.587 * gr + 0.114 * b;
+            var val = gray2 > 125 ? 255 : 0;
+            d[i] = val; d[i+1] = val; d[i+2] = val;
+        }
+    }
+    g.putImageData(imgData, 0, 0);
+    D.battery = cv.toDataURL("image/jpeg", 0.90);
+}
+
 var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]],DOC=[["f22","Form 22"],["pen","Chassis Print"]];
 function card(host,store,k,n,ic,crop){var d=document.createElement("div");d.className="card";d.innerHTML='<div class="l">'+n+'</div><div class="p">'+ic+'</div><div class="b"><button>Cam</button><button class="gl">Gal</button></div>';
 var bs=d.querySelectorAll("button"),set=function(u){store[k]=u;d.querySelector(".p").innerHTML='<img src="'+u+'">'};var go=crop?function(u){ei=-2;tg=function(x){set(x)};openC(u)}:set;bs[0].onclick=function(){pick(1,go)};bs[1].onclick=function(){pick(0,go)};$(host).appendChild(d)}
 var S0='<svg viewBox="0 0 100 60">',SH='<path d="M8 40V34Q8 30 14 29L28 26L38 16Q41 13 48 13H64Q70 13 74 18L82 27L90 30Q93 31 93 36V40Z"/><path d="M42 18H48V26H34ZM52 18H64Q67 18 69 21L73 26H52Z" fill="#fff" opacity=".7"/><circle cx="27" cy="42" r="7" fill="#334155" stroke="#fff" stroke-width="1.5"/><circle cx="75" cy="42" r="7" fill="#334155" stroke="#fff" stroke-width="1.5"/>',
 FV='<path d="M22 46V36Q22 30 28 28L36 16Q40 12 50 12Q60 12 64 16L72 28Q78 30 78 36V46Z"/><path d="M38 18H62L68 27H32Z" fill="#fff" opacity=".7"/><rect x="20" y="46" width="10" height="9" rx="2"/><rect x="70" y="46" width="10" height="9" rx="2"/>',
-CF='<path d="M15 42L18 36L32 24L56 22L78 30L85 36L85 43Z"/><path d="M34 26L55 24L70 30L40 31Z" fill="#fff" opacity=".7"/><circle cx="23" cy="43" r="6" fill="#334155" stroke="#fff" stroke-width="1.5"/>',
-CR='<path d="M16 38L24 30L46 22L72 24L84 34L85 42Z"/><rect x="17" y="33" width="8" height="5" rx="1" fill="#ef4444"/><circle cx="26" cy="43" r="6" fill="#334155" stroke="#fff" stroke-width="1.5"/>',
 MR='<g transform="translate(100 0) scale(-1 1)">',
 ICON={front:S0+FV+'<circle cx="31" cy="37" r="3.5" fill="#fde047"/><circle cx="69" cy="37" r="3.5" fill="#fde047"/></svg>',
 rear:S0+FV+'<rect x="24" y="34" width="11" height="5" rx="1.5" fill="#ef4444"/><rect x="65" y="34" width="11" height="5" rx="1.5" fill="#ef4444"/></svg>',
@@ -176,8 +247,14 @@ var n=new Date(),p=new window.jspdf.jsPDF("p","mm","a4");hd(p,"PDI REPORT");p.se
 [["Chassis Number:",ch],["Vehicle Model:",m],["Inspection Date:",n.toLocaleDateString("en-GB")+" "+n.toLocaleTimeString("en-IN")]].forEach(function(r,i){p.setFont(undefined,"bold");p.text(r[0],18,36+i*8);p.setFont(undefined,"normal");p.text(r[1],54,36+i*8)});
 p.setFont(undefined,"bold");p.setFontSize(11);p.setTextColor(2,132,199);p.text("Vehicle Photos",14,66);
 var L=SIX.map(function(s,i){return[D.six[s[0]],(i+1)+". "+s[1]]}).concat(D.add.map(function(u,i){return[u,"Additional Photo "+(i+1)]}));L.forEach(function(it,i){var x=14+(i%3)*62,y;if(i<12)y=72+Math.floor(i/3)*50;else{var j=i-12;if(j%15==0){p.addPage();hd(p,"PDI REPORT",20)}y=36+Math.floor((j%15)/3)*50}img(p,it[0],x,y,58,42,it[1])});
-if(D.sticker||D.doc.f22||D.doc.pen){p.addPage();hd(p,"PDI REPORT");p.setFontSize(11);p.setTextColor(2,132,199);p.text("2. Windshield Sticker & Documents: "+ch,14,34);
-if(D.sticker)img(p,D.sticker,14,42,86,70,"Windshield Barcode Sticker");if(D.doc.f22)img(p,D.doc.f22,110,42,86,120,"Form 22 Copy");if(D.doc.pen)img(p,D.doc.pen,14,120,86,60,"Chassis Print / Impression")}
+
+if(D.sticker||D.doc.f22||D.doc.pen||D.battery){
+    p.addPage();hd(p,"PDI REPORT");p.setFontSize(11);p.setTextColor(2,132,199);p.text("2. Documents & Battery Inspection: "+ch,14,34);
+    if(D.sticker)img(p,D.sticker,14,42,86,70,"Windshield Barcode Sticker");
+    if(D.battery)img(p,D.battery,110,42,86,70,"LV Battery Photo");
+    if(D.doc.f22)img(p,D.doc.f22,14,120,86,110,"Form 22 Copy");
+    if(D.doc.pen)img(p,D.doc.pen,110,120,86,60,"Chassis Print / Impression");
+}
 
 D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"")});
 return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf"}}
