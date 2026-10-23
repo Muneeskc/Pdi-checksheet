@@ -139,7 +139,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= CLOUD AUTO-SYNC (DRIVE, SHEET & TELEGRAM) =================
+// ================= LIGHTWEIGHT 100% RELIABLE CLOUD SYNC =================
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
 function getPending(){
@@ -149,7 +149,6 @@ function setPending(arr){
     localStorage.setItem('ktkl_pending_pdi', JSON.stringify(arr));
 }
 
-// PDF അടക്കം Google Apps Script-ലേക്ക് ബാക്ക്ഗ്രൗണ്ടിൽ അയക്കുന്നു
 async function executeUpload(item){
     await fetch(SCRIPT_URL, {
         method: 'POST',
@@ -161,8 +160,7 @@ async function executeUpload(item){
             model: item.model,
             inspector: 'Yard Team',
             status: 'COMPLETED',
-            fileName: item.fileName,
-            pdfBase64: item.pdfBase64
+            fileName: item.fileName
         })
     });
 }
@@ -187,33 +185,26 @@ async function processBackgroundSync(){
     
     var msg = $("msg");
     if(remaining.length === 0 && queue.length > 0){
-        if(msg) msg.textContent = "✓ Synced to Drive, Sheet & Telegram!";
+        if(msg) msg.textContent = "✓ Synced to Google Sheet & Telegram!";
     }
 }
 
-// നെറ്റ്‌വർക്ക് തിരികെ കിട്ടുമ്പോൾ തനിയെ അപ്‌ലോഡ് ആകുന്നു
 window.addEventListener('online', processBackgroundSync);
 
-// സേവ് ചെയ്യുമ്പോൾ തന്നെ ക്ലൗഡിലേക്ക് ഷെഡ്യൂൾ ചെയ്യുന്നു
-function handleCloudSync(ch, m, blob, fName){
-    var reader = new FileReader();
-    reader.onload = async function(e){
-        var item = {
-            id: Date.now(),
-            dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
-            chassis: ch,
-            model: m,
-            fileName: fName,
-            pdfBase64: e.target.result
-        };
-
-        var p = getPending();
-        p.push(item);
-        setPending(p);
-
-        processBackgroundSync();
+function handleCloudSync(ch, m, fName){
+    var item = {
+        id: Date.now(),
+        dateTime: new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN"),
+        chassis: ch,
+        model: m,
+        fileName: fName
     };
-    reader.readAsDataURL(blob);
+
+    var p = getPending();
+    p.push(item);
+    setPending(p);
+
+    processBackgroundSync();
 }
 
 // ================= APP ORIGINAL LOGIC =================
@@ -389,8 +380,8 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // 100% Background Cloud Sync (Drive, Sheet & Telegram)
-    handleCloudSync(b.ch, b.m, blob, b.f);
+    // 100% Reliable Cloud Background Sync (Sheet & Telegram)
+    handleCloudSync(b.ch, b.m, b.f);
 
     if(share){
         try{
