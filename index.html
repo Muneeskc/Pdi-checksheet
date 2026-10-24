@@ -155,14 +155,12 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= TELEGRAM & GOOGLE SYNC =================
-const TG_BOT_TOKEN = "8658546151:AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
-const TG_CHAT_ID = "-1004402903082";
+// ================= RELIABLE & FAST CLOUD SYNC =================
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
 function openDB() {
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open("PdiDatabaseV8", 1);
+        const req = indexedDB.open("PdiDatabaseFinalV1", 1);
         req.onupgradeneeded = () => req.result.createObjectStore("syncQueue", { keyPath: "id" });
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -211,16 +209,7 @@ async function clearStuckQueue(){
     }
 }
 
-function b64toBlob(b64Data) {
-    const parts = b64Data.split(',');
-    const raw = window.atob(parts[1]);
-    const uInt8Array = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; ++i) {
-        uInt8Array[i] = raw.charCodeAt(i);
-    }
-    return new Blob([uInt8Array], { type: "application/pdf" });
-}
-
+// സ്മാർട്ട് കംപ്രഷൻ: ക്ലാരിറ്റി ഒട്ടും കുറയില്ല, എന്നാൽ ഫയൽ സൈസ് 5-8 MB-യിൽ നിൽക്കും
 function smartCompress(base64Str) {
     return new Promise((resolve) => {
         let img = new Image();
@@ -230,7 +219,7 @@ function smartCompress(base64Str) {
             let width = img.width;
             let height = img.height;
 
-            const MAX_WIDTH = 1200;
+            const MAX_WIDTH = 1300;
             if (width > MAX_WIDTH) {
                 height = Math.round((height * MAX_WIDTH) / width);
                 width = MAX_WIDTH;
@@ -247,57 +236,29 @@ function smartCompress(base64Str) {
     });
 }
 
-// 🎯 സുരക്ഷിതമായ അപ്‌ലോഡ്: ടെലിഗ്രാം OK ആയാൽ മാത്രമേ ഷീറ്റിലേക്ക് പോകൂ!
 async function executeUpload(item) {
-    const pdfBlob = b64toBlob(item.pdfBase64);
+    const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({
+            dateTime: item.dateTime,
+            chassis: item.chassis,
+            model: item.model,
+            inspector: 'Yard Team',
+            status: 'COMPLETED',
+            fileName: item.fileName,
+            pdfBase64: item.pdfBase64
+        })
+    });
 
-    const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
-                    "📅 Date: " + item.dateTime + "\n" +
-                    "🔢 Chassis: " + item.chassis + "\n" +
-                    "🚘 Model: " + item.model + "\n" +
-                    "👤 Inspector: Yard Team\n" +
-                    "📁 File: " + item.fileName;
-
-    const formData = new FormData();
-    formData.append("chat_id", TG_CHAT_ID);
-    formData.append("caption", caption);
-    formData.append("document", pdfBlob, item.fileName);
-
-    // 1. Direct Telegram API call
-    let tgRes;
-    try {
-        tgRes = await fetch("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/sendDocument", {
-            method: "POST",
-            body: formData
-        });
-    } catch(netErr) {
-        throw new Error("Telegram Network Error: " + netErr.message);
+    if (!res.ok) {
+        throw new Error("Server HTTP Error: " + res.status);
     }
 
-    if (!tgRes.ok) {
-        const errJson = await tgRes.json().catch(() => ({}));
-        const detailedErr = errJson.description || ("Telegram Error " + tgRes.status);
-        // എറർ കൃത്യമായി കാണിക്കാൻ അലർട്ട് നൽകുന്നു
-        alert("⚠️ Telegram Upload Failed:\n" + detailedErr);
-        throw new Error(detailedErr);
+    const json = await res.json();
+    if (json.status !== "success") {
+        throw new Error(json.message || "Upload Failed");
     }
-
-    // 2. ടെലിഗ്രാമിൽ വിജയകരമായി കയറിയാൽ മാത്രം ഷീറ്റിൽ ഒരൊറ്റ തവണ എഴുതുന്നു
-    try {
-        await fetch(SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                dateTime: item.dateTime,
-                chassis: item.chassis,
-                model: item.model,
-                inspector: 'Yard Team',
-                status: 'COMPLETED',
-                fileName: item.fileName
-            })
-        });
-    } catch(e) { console.error("Sheet Sync error:", e); }
 }
 
 var isSyncing = false;
@@ -310,7 +271,7 @@ async function processBackgroundSync() {
 
         isSyncing = true;
         var msg = $("msg");
-        if (msg) msg.textContent = "⏳ Uploading " + queue.length + " report(s) directly to Telegram...";
+        if (msg) msg.textContent = "⏳ Uploading " + queue.length + " report(s) to Telegram & Sheet...";
 
         for (var item of queue) {
             try {
@@ -318,9 +279,9 @@ async function processBackgroundSync() {
                 await removeFromOfflineDB(item.id);
             } catch (err) {
                 console.error("Upload error:", err);
-                if (msg) msg.textContent = "⚠️ " + err.message;
+                if (msg) msg.textContent = "⚠️ Upload retry: " + err.message;
                 isSyncing = false;
-                return; // എറർ വന്നാൽ ആവർത്തിച്ച് ഷീറ്റിൽ കയറ്റാതെ ലൂപ്പ് നിർത്തുന്നു
+                return;
             }
         }
         
@@ -340,7 +301,7 @@ window.addEventListener('focus', processBackgroundSync);
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') processBackgroundSync();
 });
-setInterval(processBackgroundSync, 6000);
+setInterval(processBackgroundSync, 5000);
 
 async function handleCloudSync(ch, m, blob, fName) {
     var reader = new FileReader();
