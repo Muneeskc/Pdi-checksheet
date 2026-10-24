@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Vehicle Inward &amp; Inspection Pro</title>
 
-<!-- PWA & Mobile App Installation Settings -->
+<!-- PWA Settings -->
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#0284c7">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -127,7 +127,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📋 Other Documents</span><i>Optional</i></div><div class="g2" id="docs"></div>
 
 <div class="ft"><button style="background:#10b981" onclick="out(0)">💾 Save PDF</button><button style="background:#2563eb" onclick="out(1)">📤 Share PDF</button></div>
-<p id="msg" style="font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;margin-top:14px;min-height:24px;"></p>
+<p id="msg" style="font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;margin-top:14px;min-height:24px;word-break:break-word;"></p>
 </div>
 
 <div id="cm">
@@ -156,12 +156,11 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <script>
 // ================= TELEGRAM & GOOGLE SHEET DIRECT SYNC =================
 const pA = "8658546151";
-const pB = "AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
+const pB = "AAEw-zolKab5oZLu6pUMdAF42ms6ipRia8co";
 const TG_BOT_TOKEN = pA + ":" + pB;
 const TG_CHAT_ID = "-1004402903082";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
-// ലൈവായി ഫയൽ അപ്‌ലോഡ് ചെയ്യുന്ന ഫംഗ്ഷൻ
 async function uploadDirectly(chassis, model, blob, fileName) {
     const msg = $("msg");
     const dTime = new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN");
@@ -169,14 +168,13 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     try {
         if (!navigator.onLine) {
             msg.style.color = "#d97706";
-            msg.textContent = "⚠️ ഇന്റർനെറ്റ് ഇല്ല! നെറ്റ്‌വർക്ക് വരുമ്പോൾ വീണ്ടും ശ്രമിക്കുക.";
+            msg.textContent = "⚠️ ഇന്റർനെറ്റ് ഇല്ല! കണക്റ്റ് ചെയ്യുമ്പോൾ ഓട്ടോമാറ്റിക് ആയി അയക്കാം.";
             return;
         }
 
         msg.style.color = "#38bdf8";
         msg.textContent = "⏳ Uploading PDF to Telegram...";
 
-        // 1. FormData വഴി നേരിട്ട് Telegram-ലേക്ക് അയക്കുന്നു
         const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
                         "📅 Date: " + dTime + "\n" +
                         "🔢 Chassis: " + chassis + "\n" +
@@ -194,14 +192,17 @@ async function uploadDirectly(chassis, model, blob, fileName) {
             body: formData
         });
 
-        if (!tgRes.ok) {
-            const errJson = await tgRes.json().catch(() => ({}));
-            throw new Error(errJson.description || ("Telegram Error " + tgRes.status));
+        const resText = await tgRes.text();
+        let resJson = {};
+        try { resJson = JSON.parse(resText); } catch(e){}
+
+        if (!tgRes.ok || !resJson.ok) {
+            const errDetail = resJson.description || ("HTTP " + tgRes.status);
+            throw new Error(errDetail);
         }
 
         msg.textContent = "⏳ Logging entry into Google Sheet...";
 
-        // 2. Telegram വിജയകരമായി കഴിഞ്ഞാൽ മാത്രം Google Sheet-ലേക്ക് വരി ചേർക്കുന്നു
         try {
             await fetch(SCRIPT_URL, {
                 method: 'POST',
@@ -225,12 +226,12 @@ async function uploadDirectly(chassis, model, blob, fileName) {
 
     } catch (err) {
         msg.style.color = "#ef4444";
-        msg.textContent = "❌ Upload Failed: " + err.message;
-        alert("Upload Failed: " + err.message);
+        msg.textContent = "❌ Telegram Error: " + err.message;
+        alert("⚠️ Telegram Upload Failed:\n\n" + err.message);
     }
 }
 
-// സ്മാർട്ട് കംപ്രഷൻ: ഉയർന്ന ക്ലാരിറ്റി നിലനിർത്തിക്കൊണ്ട് സൈസ് 5-8 MB-യിലേക്ക് മാറ്റുന്നു
+// 2200px ULTRA-HD FAST SMART COMPRESSION (ഹൈ സ്പീഡ് & ഉയർന്ന ക്ലാരിറ്റി)
 function smartCompress(base64Str) {
     return new Promise((resolve) => {
         let img = new Image();
@@ -240,7 +241,7 @@ function smartCompress(base64Str) {
             let width = img.width;
             let height = img.height;
 
-            const MAX_WIDTH = 1300;
+            const MAX_WIDTH = 2200;
             if (width > MAX_WIDTH) {
                 height = Math.round((height * MAX_WIDTH) / width);
                 width = MAX_WIDTH;
@@ -248,10 +249,12 @@ function smartCompress(base64Str) {
 
             canvas.width = width;
             canvas.height = height;
-            let ctx = canvas.getContext('2d');
+            let ctx = canvas.getContext('2d', { alpha: false });
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'low'; // ഫാസ്റ്റ് എൻകോഡിംഗിനായി
             ctx.drawImage(img, 0, 0, width, height);
 
-            resolve(canvas.toDataURL('image/jpeg', 0.75));
+            resolve(canvas.toDataURL('image/jpeg', 0.80));
         };
         img.onerror = () => resolve(base64Str);
     });
@@ -382,7 +385,7 @@ function openC(u){
     $("cm").style.display="flex";
     if(cr)cr.destroy();
     i.onload=function(){
-        cr=new Cropper(i,{viewMode:1,autoCropArea:.92,restore:false,highlight:false,toggleDragModeOnDblclick:false,ready:function(){cr.setData(box(i))}});
+        cr=new Cropper(i,{viewMode:1,autoCropArea:.95,restore:false,highlight:false,toggleDragModeOnDblclick:false,ready:function(){cr.setData(box(i))}});
     };
     i.src=u;
 }
@@ -391,7 +394,13 @@ function closeC(){if(cr){cr.destroy();cr=null}$("cm").style.display="none"}
 
 function doneC(){
     if(!cr)return;
-    var canvas = cr.getCroppedCanvas({maxWidth:1800, maxHeight:1800, imageSmoothingQuality:'high'});
+    // Checklist crop: 2200px മാക്സിമം ക്ലാരിറ്റിയും സ്പീഡും
+    var canvas = cr.getCroppedCanvas({
+        maxWidth: 2200, 
+        maxHeight: 2200, 
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'low'
+    });
     var u = processCanvasFilter(canvas, selectedFilter);
     var o = $("ci").src;
     
@@ -405,7 +414,15 @@ function doneC(){
     closeC();
 }
 function hd(p,t,s){p.setFillColor(15,23,42);p.rect(0,0,210,s||24,"F");p.setTextColor(255,255,255);p.setFontSize(14);p.setFont(undefined,"bold");p.text(t,14,16)}
-function img(p,u,x,y,w,h,l){p.setFont(undefined,"bold");p.setFontSize(8);p.setTextColor(71,85,105);if(l)p.text(l,x,y-2);if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,'FAST');else{p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20)}}
+function img(p,u,x,y,w,h,l){
+    p.setFont(undefined,"bold");
+    p.setFontSize(8);
+    p.setTextColor(71,85,105);
+    if(l)p.text(l,x,y-2);
+    // FAST റെൻഡറിങ് വഴി ഫോൺ ലാഗ് ആവാതെ റെൻഡർ ചെയ്യും
+    if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,'FAST');
+    else{p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20)}
+}
 
 function build(){
     var ch=$("C").value.toUpperCase().trim(),m=$("M").value.trim();
@@ -433,7 +450,7 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // നേരിട്ട് ലൈവായി Telegram-ലേക്കും Sheet-ലേക്കും അയക്കുന്നു
+    // തത്സമയം ലൈവായി അപ്‌ലോഡ് ചെയ്യുന്നു
     uploadDirectly(b.ch, b.m, blob, b.f);
 
     if(share){
@@ -452,12 +469,15 @@ async function out(share){
 }
 </script>
 
-<!-- Service Worker Registration -->
+<!-- Service Worker Registration with Cache Auto-Update -->
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('PWA Service Worker registered!', reg))
+    navigator.serviceWorker.register('./sw.js?v=' + Date.now())
+      .then(reg => {
+        reg.update();
+        console.log('PWA Service Worker updated!');
+      })
       .catch(err => console.error('PWA Service Worker failed', err));
   });
 }
