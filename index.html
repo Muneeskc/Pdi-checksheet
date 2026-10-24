@@ -155,15 +155,14 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= SAFE TOKEN ENCODING (NO GITGUARDIAN ALERT) =================
-// 100% Direct Telegram upload (Supports up to 50MB smoothly)
-const TG_BOT_TOKEN = window.atob("ODY1ODU0NjE1MTpBQUV3LXpvbEthYjVvWkx1NnBVTWRBRjQybXM2aXBScWE4Y28=");
+// ================= TELEGRAM & GOOGLE SYNC =================
+const TG_BOT_TOKEN = "8658546151:AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
 const TG_CHAT_ID = "-1004402903082";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
 function openDB() {
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open("PdiDatabaseV7", 1);
+        const req = indexedDB.open("PdiDatabaseV8", 1);
         req.onupgradeneeded = () => req.result.createObjectStore("syncQueue", { keyPath: "id" });
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -231,7 +230,7 @@ function smartCompress(base64Str) {
             let width = img.width;
             let height = img.height;
 
-            const MAX_WIDTH = 1400;
+            const MAX_WIDTH = 1200;
             if (width > MAX_WIDTH) {
                 height = Math.round((height * MAX_WIDTH) / width);
                 width = MAX_WIDTH;
@@ -242,17 +241,16 @@ function smartCompress(base64Str) {
             let ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            resolve(canvas.toDataURL('image/jpeg', 0.78));
+            resolve(canvas.toDataURL('image/jpeg', 0.75));
         };
         img.onerror = () => resolve(base64Str);
     });
 }
 
-// യഥാർത്ഥ അപ്‌ലോഡ്: ആദ്യം ടെലിഗ്രാമിലേക്ക് അയക്കുന്നു, അത് വിജയകരമായാൽ മാത്രം ഷീറ്റിൽ എഴുതുന്നു
+// 🎯 സുരക്ഷിതമായ അപ്‌ലോഡ്: ടെലിഗ്രാം OK ആയാൽ മാത്രമേ ഷീറ്റിലേക്ക് പോകൂ!
 async function executeUpload(item) {
     const pdfBlob = b64toBlob(item.pdfBase64);
 
-    // 1. Direct Telegram API Upload (FormData)
     const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
                     "📅 Date: " + item.dateTime + "\n" +
                     "🔢 Chassis: " + item.chassis + "\n" +
@@ -265,17 +263,26 @@ async function executeUpload(item) {
     formData.append("caption", caption);
     formData.append("document", pdfBlob, item.fileName);
 
-    const tgRes = await fetch("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/sendDocument", {
-        method: "POST",
-        body: formData
-    });
+    // 1. Direct Telegram API call
+    let tgRes;
+    try {
+        tgRes = await fetch("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/sendDocument", {
+            method: "POST",
+            body: formData
+        });
+    } catch(netErr) {
+        throw new Error("Telegram Network Error: " + netErr.message);
+    }
 
     if (!tgRes.ok) {
         const errJson = await tgRes.json().catch(() => ({}));
-        throw new Error(errJson.description || ("Telegram Error: " + tgRes.status));
+        const detailedErr = errJson.description || ("Telegram Error " + tgRes.status);
+        // എറർ കൃത്യമായി കാണിക്കാൻ അലർട്ട് നൽകുന്നു
+        alert("⚠️ Telegram Upload Failed:\n" + detailedErr);
+        throw new Error(detailedErr);
     }
 
-    // 2. ടെലിഗ്രാമിൽ എത്തിയ ശേഷം മാത്രം ഷീറ്റിൽ ഒരൊറ്റ തവണ മാത്രം രേഖപ്പെടുത്തുന്നു (No Duplicate Rows)
+    // 2. ടെലിഗ്രാമിൽ വിജയകരമായി കയറിയാൽ മാത്രം ഷീറ്റിൽ ഒരൊറ്റ തവണ എഴുതുന്നു
     try {
         await fetch(SCRIPT_URL, {
             method: 'POST',
@@ -313,7 +320,7 @@ async function processBackgroundSync() {
                 console.error("Upload error:", err);
                 if (msg) msg.textContent = "⚠️ " + err.message;
                 isSyncing = false;
-                return;
+                return; // എറർ വന്നാൽ ആവർത്തിച്ച് ഷീറ്റിൽ കയറ്റാതെ ലൂപ്പ് നിർത്തുന്നു
             }
         }
         
@@ -333,7 +340,7 @@ window.addEventListener('focus', processBackgroundSync);
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') processBackgroundSync();
 });
-setInterval(processBackgroundSync, 5000);
+setInterval(processBackgroundSync, 6000);
 
 async function handleCloudSync(ch, m, blob, fName) {
     var reader = new FileReader();
@@ -495,7 +502,7 @@ function closeC(){if(cr){cr.destroy();cr=null}$("cm").style.display="none"}
 
 function doneC(){
     if(!cr)return;
-    var canvas = cr.getCroppedCanvas({maxWidth:2048, maxHeight:2048, imageSmoothingQuality:'high'});
+    var canvas = cr.getCroppedCanvas({maxWidth:1800, maxHeight:1800, imageSmoothingQuality:'high'});
     var u = processCanvasFilter(canvas, selectedFilter);
     var o = $("ci").src;
     
