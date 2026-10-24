@@ -156,82 +156,151 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <script>
 // ================= TELEGRAM & GOOGLE SHEET DIRECT SYNC =================
 const pA = "8658546151";
-const pB = "AAEw-zolKab5oZLu6pUMdAF42ms6ipRia8co";
+const pB = "AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
 const TG_BOT_TOKEN = pA + ":" + pB;
 const TG_CHAT_ID = "-1004402903082";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
+
+// ================= INDEXEDDB OFFLINE SYNC QUEUE =================
+let db = null;
+const reqDB = indexedDB.open("PDI_Queue_DB", 1);
+reqDB.onupgradeneeded = (e) => {
+    let d = e.target.result;
+    if (!d.objectStoreNames.contains("pending_uploads")) {
+        d.createObjectStore("pending_uploads", { keyPath: "id", autoIncrement: true });
+    }
+};
+reqDB.onsuccess = (e) => {
+    db = e.target.result;
+    processPendingQueue(); // ആപ്പ് തുറക്കുമ്പോൾ പെൻഡിങ് ഉള്ളത് തനിയെ അപ്‌ലോഡ് ചെയ്യുക
+};
+
+function saveToQueue(item) {
+    if (!db) return;
+    let tx = db.transaction("pending_uploads", "readwrite");
+    tx.objectStore("pending_uploads").add(item);
+}
+
+let isSyncing = false;
+async function processPendingQueue() {
+    if (isSyncing || !navigator.onLine || !db) return;
+    isSyncing = true;
+
+    let tx = db.transaction("pending_uploads", "readonly");
+    let store = tx.objectStore("pending_uploads");
+    let getAllReq = store.getAll();
+
+    getAllReq.onsuccess = async () => {
+        let items = getAllReq.result;
+        if (items && items.length > 0) {
+            const msg = $("msg");
+            if (msg) {
+                msg.style.color = "#d97706";
+                msg.textContent = "⏳ Syncing " + items.length + " pending upload(s)...";
+            }
+
+            for (let it of items) {
+                try {
+                    let success = await sendToTelegramAndSheet(it.chassis, it.model, it.blob, it.fileName, it.dTime);
+                    if (success) {
+                        // അപ്‌ലോഡ് വിജയകരമായാൽ ഡാറ്റാബേസിൽ നിന്ന് നീക്കം ചെയ്യുക
+                        let delTx = db.transaction("pending_uploads", "readwrite");
+                        delTx.objectStore("pending_uploads").delete(it.id);
+                    }
+                } catch(e) {
+                    console.error("Queue item sync error:", e);
+                }
+            }
+            if (msg) {
+                msg.style.color = "#10b981";
+                msg.textContent = "✓ All pending reports synced successfully!";
+                setTimeout(() => { msg.textContent = ""; }, 4000);
+            }
+        }
+        isSyncing = false;
+    };
+    getAllReq.onerror = () => { isSyncing = false; };
+}
+
+window.addEventListener('online', processPendingQueue);
+
+async function sendToTelegramAndSheet(chassis, model, blob, fileName, dTime) {
+    const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
+                    "📅 Date: " + dTime + "\n" +
+                    "🔢 Chassis: " + chassis + "\n" +
+                    "🚘 Model: " + model + "\n" +
+                    "👤 Inspector: Yard Team\n" +
+                    "📁 File: " + fileName;
+
+    const formData = new FormData();
+    formData.append("chat_id", TG_CHAT_ID);
+    formData.append("caption", caption);
+    formData.append("document", blob, fileName);
+
+    const tgRes = await fetch("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/sendDocument", {
+        method: "POST",
+        body: formData
+    });
+
+    const resText = await tgRes.text();
+    let resJson = {};
+    try { resJson = JSON.parse(resText); } catch(e){}
+
+    if (!tgRes.ok || !resJson.ok) {
+        throw new Error(resJson.description || ("HTTP " + tgRes.status));
+    }
+
+    try {
+        await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                dateTime: dTime,
+                chassis: chassis,
+                model: model,
+                inspector: 'Yard Team',
+                status: 'COMPLETED',
+                fileName: fileName
+            })
+        });
+    } catch(sheetErr) {
+        console.error("Sheet error:", sheetErr);
+    }
+
+    return true;
+}
 
 async function uploadDirectly(chassis, model, blob, fileName) {
     const msg = $("msg");
     const dTime = new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN");
 
-    try {
-        if (!navigator.onLine) {
-            msg.style.color = "#d97706";
-            msg.textContent = "⚠️ ഇന്റർനെറ്റ് ഇല്ല! കണക്റ്റ് ചെയ്യുമ്പോൾ ഓട്ടോമാറ്റിക് ആയി അയക്കാം.";
-            return;
-        }
+    // ഓഫ്‌ലൈൻ ആണെങ്കിൽ ഉടൻ തന്നെ ലോക്കൽ ക്യൂവിലേക്ക് സേവ് ചെയ്യുക
+    if (!navigator.onLine) {
+        saveToQueue({ chassis, model, blob, fileName, dTime });
+        msg.style.color = "#d97706";
+        msg.textContent = "⚠️ ഇന്റർനെറ്റ് ഇല്ല! റിപ്പോർട്ട് ഫോണിൽ സേവ് ചെയ്തു. നെറ്റ് വരുമ്പോൾ ഓട്ടോമാറ്റിക് ആയി അപ്‌ലോഡ് ആകും.";
+        return;
+    }
 
+    try {
         msg.style.color = "#38bdf8";
         msg.textContent = "⏳ Uploading PDF to Telegram...";
 
-        const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
-                        "📅 Date: " + dTime + "\n" +
-                        "🔢 Chassis: " + chassis + "\n" +
-                        "🚘 Model: " + model + "\n" +
-                        "👤 Inspector: Yard Team\n" +
-                        "📁 File: " + fileName;
-
-        const formData = new FormData();
-        formData.append("chat_id", TG_CHAT_ID);
-        formData.append("caption", caption);
-        formData.append("document", blob, fileName);
-
-        const tgRes = await fetch("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/sendDocument", {
-            method: "POST",
-            body: formData
-        });
-
-        const resText = await tgRes.text();
-        let resJson = {};
-        try { resJson = JSON.parse(resText); } catch(e){}
-
-        if (!tgRes.ok || !resJson.ok) {
-            const errDetail = resJson.description || ("HTTP " + tgRes.status);
-            throw new Error(errDetail);
-        }
-
-        msg.textContent = "⏳ Logging entry into Google Sheet...";
-
-        try {
-            await fetch(SCRIPT_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    dateTime: dTime,
-                    chassis: chassis,
-                    model: model,
-                    inspector: 'Yard Team',
-                    status: 'COMPLETED',
-                    fileName: fileName
-                })
-            });
-        } catch(sheetErr) {
-            console.error("Sheet error:", sheetErr);
-        }
+        await sendToTelegramAndSheet(chassis, model, blob, fileName, dTime);
 
         msg.style.color = "#10b981";
         msg.textContent = "✓ Successfully Delivered to Telegram & Sheet!";
 
     } catch (err) {
-        msg.style.color = "#ef4444";
-        msg.textContent = "❌ Telegram Error: " + err.message;
-        alert("⚠️ Telegram Upload Failed:\n\n" + err.message);
+        // നെറ്റ് തടസ്സപ്പെടുകയോ അപ്‌ലോഡ് പരാജയപ്പെടുകയോ ചെയ്താൽ ക്യൂവിലേക്ക് സേവ് ചെയ്യുക
+        saveToQueue({ chassis, model, blob, fileName, dTime });
+        msg.style.color = "#d97706";
+        msg.textContent = "⚠️ Upload paused. Saved to queue, will auto-sync soon!";
     }
 }
 
-// 2200px ULTRA-HD FAST SMART COMPRESSION (ഹൈ സ്പീഡ് & ഉയർന്ന ക്ലാരിറ്റി)
+// 2200px ULTRA-HD FAST SMART COMPRESSION
 function smartCompress(base64Str) {
     return new Promise((resolve) => {
         let img = new Image();
@@ -251,7 +320,7 @@ function smartCompress(base64Str) {
             canvas.height = height;
             let ctx = canvas.getContext('2d', { alpha: false });
             ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'low'; // ഫാസ്റ്റ് എൻകോഡിംഗിനായി
+            ctx.imageSmoothingQuality = 'low';
             ctx.drawImage(img, 0, 0, width, height);
 
             resolve(canvas.toDataURL('image/jpeg', 0.80));
@@ -394,7 +463,6 @@ function closeC(){if(cr){cr.destroy();cr=null}$("cm").style.display="none"}
 
 function doneC(){
     if(!cr)return;
-    // Checklist crop: 2200px മാക്സിമം ക്ലാരിറ്റിയും സ്പീഡും
     var canvas = cr.getCroppedCanvas({
         maxWidth: 2200, 
         maxHeight: 2200, 
@@ -419,7 +487,6 @@ function img(p,u,x,y,w,h,l){
     p.setFontSize(8);
     p.setTextColor(71,85,105);
     if(l)p.text(l,x,y-2);
-    // FAST റെൻഡറിങ് വഴി ഫോൺ ലാഗ് ആവാതെ റെൻഡർ ചെയ്യും
     if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,'FAST');
     else{p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20)}
 }
@@ -450,7 +517,7 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // തത്സമയം ലൈവായി അപ്‌ലോഡ് ചെയ്യുന്നു
+    // തത്സമയ അപ്‌ലോഡ് അല്ലെങ്കിൽ ഓഫ്‌ലൈൻ ക്യൂവിലേക്ക് സേവ് ചെയ്യൽ
     uploadDirectly(b.ch, b.m, blob, b.f);
 
     if(share){
