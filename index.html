@@ -109,9 +109,9 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📸 Additional Inspection Photos</span><i>Optional (Multi-select)</i></div>
 <div class="box" style="text-align:center"><div class="row"><button onclick="pick(1,addP)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP,1)">🖼️ From Gallery</button></div><div class="gal" id="ga"></div></div>
 
-<div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; Enhance</i></div>
+<div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; Enhance (Full Resolution)</i></div>
 <div class="box" style="text-align:center">
-    <div class="row"><button onclick="pick(1,newCk)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk)">🖼️ From Gallery</button></div>
+    <div class="row"><button onclick="pick(1,newCk,0,true)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk,0,true)">🖼️ From Gallery</button></div>
     <div class="gal" id="gc"></div>
 </div>
 
@@ -172,7 +172,7 @@ reqDB.onupgradeneeded = (e) => {
 };
 reqDB.onsuccess = (e) => {
     db = e.target.result;
-    processPendingQueue(); // ആപ്പ് തുറക്കുമ്പോൾ പെൻഡിങ് ഉള്ളത് തനിയെ അപ്‌ലോഡ് ചെയ്യുക
+    processPendingQueue();
 };
 
 function saveToQueue(item) {
@@ -203,7 +203,6 @@ async function processPendingQueue() {
                 try {
                     let success = await sendToTelegramAndSheet(it.chassis, it.model, it.blob, it.fileName, it.dTime);
                     if (success) {
-                        // അപ്‌ലോഡ് വിജയകരമായാൽ ഡാറ്റാബേസിൽ നിന്ന് നീക്കം ചെയ്യുക
                         let delTx = db.transaction("pending_uploads", "readwrite");
                         delTx.objectStore("pending_uploads").delete(it.id);
                     }
@@ -275,11 +274,10 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     const msg = $("msg");
     const dTime = new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN");
 
-    // ഓഫ്‌ലൈൻ ആണെങ്കിൽ ഉടൻ തന്നെ ലോക്കൽ ക്യൂവിലേക്ക് സേവ് ചെയ്യുക
     if (!navigator.onLine) {
         saveToQueue({ chassis, model, blob, fileName, dTime });
         msg.style.color = "#d97706";
-        msg.textContent = "⚠️ ഇന്റർനെറ്റ് ഇല്ല! റിപ്പോർട്ട് ഫോണിൽ സേവ് ചെയ്തു. നെറ്റ് വരുമ്പോൾ ഓട്ടോമാറ്റിക് ആയി അപ്‌ലോഡ് ആകും.";
+        msg.textContent = "⚠️ Internet illa! Report phone-il save cheythu. Net varumbol upload aakum.";
         return;
     }
 
@@ -293,14 +291,13 @@ async function uploadDirectly(chassis, model, blob, fileName) {
         msg.textContent = "✓ Successfully Delivered to Telegram & Sheet!";
 
     } catch (err) {
-        // നെറ്റ് തടസ്സപ്പെടുകയോ അപ്‌ലോഡ് പരാജയപ്പെടുകയോ ചെയ്താൽ ക്യൂവിലേക്ക് സേവ് ചെയ്യുക
         saveToQueue({ chassis, model, blob, fileName, dTime });
         msg.style.color = "#d97706";
         msg.textContent = "⚠️ Upload paused. Saved to queue, will auto-sync soon!";
     }
 }
 
-// 2200px ULTRA-HD FAST SMART COMPRESSION
+// 2200px SMART COMPRESSION (Vehicle Photos, Stickers & Battery-ku vendi maathram)
 function smartCompress(base64Str) {
     return new Promise((resolve) => {
         let img = new Image();
@@ -355,14 +352,32 @@ function sv(){try{localStorage.setItem("yardCat",JSON.stringify(X))}catch(e){}}
 function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
 function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
 function onM(){$("M").value=$("ms").value}
-function pick(cam,cb,multi){var i=document.createElement("input");i.type="file";i.accept="image/*";if(cam)i.setAttribute("capture","environment");if(multi)i.multiple=true;
-i.onchange=function(){Array.from(i.files).forEach(function(f){rd(f,cb)})};i.click()}
 
-function rd(f,cb){
+// skipCompress = true koduthaal checklist compression illaathe 100% original aayi edukkoo
+function pick(cam,cb,multi,skipCompress){
+    var i=document.createElement("input");
+    i.type="file";
+    i.accept="image/*";
+    if(cam)i.setAttribute("capture","environment");
+    if(multi)i.multiple=true;
+    i.onchange=function(){
+        Array.from(i.files).forEach(function(f){
+            rd(f,cb,skipCompress);
+        });
+    };
+    i.click();
+}
+
+function rd(f,cb,skipCompress){
     var r=new FileReader();
     r.onload=async function(e){ 
-        let cleanImage = await smartCompress(e.target.result);
-        cb(cleanImage); 
+        if(skipCompress){
+            // Checklist: No compression, full camera resolution
+            cb(e.target.result);
+        } else {
+            let cleanImage = await smartCompress(e.target.result);
+            cb(cleanImage);
+        }
     };
     r.readAsDataURL(f);
 }
@@ -388,7 +403,8 @@ function setFilter(mode){
 }
 
 function processCanvasFilter(cv, mode){
-    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.85);
+    // Quality 1.0 (100% uncompressed original)
+    if(mode === 'original') return cv.toDataURL("image/jpeg", 1.0);
     var ctx = cv.getContext("2d");
     var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
     var d = imgData.data;
@@ -411,7 +427,7 @@ function processCanvasFilter(cv, mode){
         }
     }
     ctx.putImageData(imgData, 0, 0);
-    return cv.toDataURL("image/jpeg", 0.85);
+    return cv.toDataURL("image/jpeg", 1.0);
 }
 
 var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]],DOC=[["f22","Form 22"],["pen","Chassis Print"]];
@@ -463,11 +479,10 @@ function closeC(){if(cr){cr.destroy();cr=null}$("cm").style.display="none"}
 
 function doneC(){
     if(!cr)return;
+    // Checklist: Oru limit-um illaathe full camera resolution crop edukkunnu
     var canvas = cr.getCroppedCanvas({
-        maxWidth: 2200, 
-        maxHeight: 2200, 
         imageSmoothingEnabled: true,
-        imageSmoothingQuality: 'low'
+        imageSmoothingQuality: 'high'
     });
     var u = processCanvasFilter(canvas, selectedFilter);
     var o = $("ci").src;
@@ -482,12 +497,14 @@ function doneC(){
     closeC();
 }
 function hd(p,t,s){p.setFillColor(15,23,42);p.rect(0,0,210,s||24,"F");p.setTextColor(255,255,255);p.setFontSize(14);p.setFont(undefined,"bold");p.text(t,14,16)}
-function img(p,u,x,y,w,h,l){
+function img(p,u,x,y,w,h,l,isChecklist){
     p.setFont(undefined,"bold");
     p.setFontSize(8);
     p.setTextColor(71,85,105);
     if(l)p.text(l,x,y-2);
-    if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,'FAST');
+    // Checklist aano enkil full sharpness-il SLOW render, allatha photos pettennu theeraan FAST
+    var renderMode = isChecklist ? 'SLOW' : 'FAST';
+    if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,renderMode);
     else{p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20)}
 }
 
@@ -499,17 +516,18 @@ function build(){
     [["Chassis Number:",ch],["Vehicle Model:",m],["Inspection Date:",n.toLocaleDateString("en-GB")+" "+n.toLocaleTimeString("en-IN")]].forEach(function(r,i){p.setFont(undefined,"bold");p.text(r[0],18,36+i*8);p.setFont(undefined,"normal");p.text(r[1],54,36+i*8)});
     p.setFont(undefined,"bold");p.setFontSize(11);p.setTextColor(2,132,199);p.text("Vehicle Photos",14,66);
     var L=SIX.map(function(s,i){return[D.six[s[0]],(i+1)+". "+s[1]]}).concat(D.add.map(function(u,i){return[u,"Additional Photo "+(i+1)]}));
-    L.forEach(function(it,i){var x=14+(i%3)*62,y;if(i<12)y=72+Math.floor(i/3)*50;else{var j=i-12;if(j%15==0){p.addPage();hd(p,"PDI REPORT",20)}y=36+Math.floor((j%15)/3)*50}img(p,it[0],x,y,58,42,it[1])});
+    L.forEach(function(it,i){var x=14+(i%3)*62,y;if(i<12)y=72+Math.floor(i/3)*50;else{var j=i-12;if(j%15==0){p.addPage();hd(p,"PDI REPORT",20)}y=36+Math.floor((j%15)/3)*50}img(p,it[0],x,y,58,42,it[1],false)});
 
     if(D.sticker||D.doc.f22||D.doc.pen||D.battery){
         p.addPage();hd(p,"PDI REPORT");p.setFontSize(11);p.setTextColor(2,132,199);p.text("2. Documents & Battery Inspection: "+ch,14,34);
-        if(D.sticker)img(p,D.sticker,14,42,86,70,"Windshield Barcode Sticker");
-        if(D.battery)img(p,D.battery,110,42,86,70,"LV Battery Photo");
-        if(D.doc.f22)img(p,D.doc.f22,14,120,86,110,"Form 22 Copy");
-        if(D.doc.pen)img(p,D.doc.pen,110,120,86,60,"Chassis Print / Impression");
+        if(D.sticker)img(p,D.sticker,14,42,86,70,"Windshield Barcode Sticker",false);
+        if(D.battery)img(p,D.battery,110,42,86,70,"LV Battery Photo",false);
+        if(D.doc.f22)img(p,D.doc.f22,14,120,86,110,"Form 22 Copy",false);
+        if(D.doc.pen)img(p,D.doc.pen,110,120,86,60,"Chassis Print / Impression",false);
     }
 
-    D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"")});
+    // Checklist 100% original high-clarity render
+    D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"",true)});
     return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",ch:ch,m:m};
 }
 
@@ -517,7 +535,6 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // തത്സമയ അപ്‌ലോഡ് അല്ലെങ്കിൽ ഓഫ്‌ലൈൻ ക്യൂവിലേക്ക് സേവ് ചെയ്യൽ
     uploadDirectly(b.ch, b.m, blob, b.f);
 
     if(share){
