@@ -155,16 +155,12 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= HIGH-SPEED OFFLINE SYNC WITH SMART HD COMPRESSION =================
-const _p1 = "8658546151";
-const _p2 = "AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
-const TG_BOT_TOKEN = _p1 + ":" + _p2;
-const TG_CHAT_ID = "-1004402903082";
+// ================= HIGH-SPEED RELIABLE CLOUD SYNC =================
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
 function openDB() {
     return new Promise((resolve, reject) => {
-        const req = indexedDB.open("PdiDatabaseV5", 1);
+        const req = indexedDB.open("PdiDatabaseV6", 1);
         req.onupgradeneeded = () => req.result.createObjectStore("syncQueue", { keyPath: "id" });
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
@@ -213,25 +209,9 @@ async function clearStuckQueue(){
     }
 }
 
-function b64toBlob(b64Data) {
-    const parts = b64Data.split(';base64,');
-    const contentType = parts[0].split(':')[1];
-    const raw = window.atob(parts[1]);
-    const uInt8Array = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; ++i) {
-        uInt8Array[i] = raw.charCodeAt(i);
-    }
-    return new Blob([uInt8Array], { type: contentType });
-}
-
-// 🎯 SMART HD COMPRESSION: ക്ലാരിറ്റി കുറയാതെ വലിയ ഫയലുകൾ മാത്രം കംപ്രസ് ചെയ്യുന്നു
+// സ്മാർട്ട് കംപ്രഷൻ: ഫുൾ എച്ച്ഡി ക്ലാരിറ്റി നിലനിർത്തുന്നു, എന്നാൽ ഫയൽ സൈസ് ഒതുക്കുന്നു
 function smartCompress(base64Str) {
     return new Promise((resolve) => {
-        // ഏകദേശം 2.5 MB-യിൽ താഴെയുള്ള ഫോട്ടോകൾ യാതൊരു മാറ്റവുമില്ലാതെ ഒറിജിനലായിത്തന്നെ എടുക്കുന്നു
-        if (base64Str.length < 3.2 * 1024 * 1024) {
-            return resolve(base64Str);
-        }
-
         let img = new Image();
         img.src = base64Str;
         img.onload = () => {
@@ -239,8 +219,7 @@ function smartCompress(base64Str) {
             let width = img.width;
             let height = img.height;
 
-            // ഫുൾ HD ക്ലാരിറ്റി നിലനിർത്താൻ പരമാവധി വീതി 1920px ആയി നിജപ്പെടുത്തുന്നു
-            const MAX_WIDTH = 1920;
+            const MAX_WIDTH = 1600;
             if (width > MAX_WIDTH) {
                 height = Math.round((height * MAX_WIDTH) / width);
                 width = MAX_WIDTH;
@@ -251,57 +230,34 @@ function smartCompress(base64Str) {
             let ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            // 82% ഹൈ ക്വാളിറ്റിയിൽ സൂക്ഷ്മമായ വിവരങ്ങൾ നഷ്ടപ്പെടാതെ സേവ് ചെയ്യുന്നു
-            resolve(canvas.toDataURL('image/jpeg', 0.82));
+            resolve(canvas.toDataURL('image/jpeg', 0.80));
         };
         img.onerror = () => resolve(base64Str);
     });
 }
 
 async function executeUpload(item) {
-    // 1. Google Sheet Log
-    try {
-        await fetch(SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                dateTime: item.dateTime,
-                chassis: item.chassis,
-                model: item.model,
-                inspector: 'Yard Team',
-                status: 'COMPLETED',
-                fileName: item.fileName
-            })
-        });
-    } catch(e) { console.error("Sheet Sync error:", e); }
-
-    // 2. Telegram SendDocument
-    const pdfBlob = b64toBlob(item.pdfBase64);
-    
-    if (pdfBlob.size > 48 * 1024 * 1024) {
-        throw new Error("File exceeds Telegram 50MB limit: " + Math.round(pdfBlob.size/(1024*1024)) + "MB");
-    }
-
-    const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
-                    "📅 Date: " + item.dateTime + "\n" +
-                    "🔢 Chassis: " + item.chassis + "\n" +
-                    "🚘 Model: " + item.model + "\n" +
-                    "👤 Inspector: Yard Team\n" +
-                    "📁 File: " + item.fileName;
-
-    const formData = new FormData();
-    formData.append("chat_id", TG_CHAT_ID);
-    formData.append("caption", caption);
-    formData.append("document", pdfBlob, item.fileName);
-
-    const res = await fetch("https://api.telegram.org/bot" + TG_BOT_TOKEN + "/sendDocument", {
-        method: "POST",
-        body: formData
+    const res = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify({
+            dateTime: item.dateTime,
+            chassis: item.chassis,
+            model: item.model,
+            inspector: 'Yard Team',
+            status: 'COMPLETED',
+            fileName: item.fileName,
+            pdfBase64: item.pdfBase64
+        })
     });
 
     if (!res.ok) {
-        throw new Error("Telegram API Error: " + res.status);
+        throw new Error("HTTP Server Error: " + res.status);
+    }
+
+    const json = await res.json();
+    if (json.status !== "success") {
+        throw new Error(json.message || "Telegram failed");
     }
 }
 
@@ -315,27 +271,24 @@ async function processBackgroundSync() {
 
         isSyncing = true;
         var msg = $("msg");
-        if (msg) msg.textContent = "⏳ Uploading " + queue.length + " report(s) to Cloud...";
+        if (msg) msg.textContent = "⏳ Uploading " + queue.length + " report(s) to Telegram & Sheet...";
 
         for (var item of queue) {
             try {
                 await executeUpload(item);
                 await removeFromOfflineDB(item.id);
             } catch (err) {
-                console.error("Item upload failed:", err);
-                if (err.message && err.message.includes("50MB")) {
-                    alert("Report for " + item.chassis + " is over 50MB. Skipping!");
-                    await removeFromOfflineDB(item.id);
-                }
+                console.error("Upload error:", err);
+                if (msg) msg.textContent = "⚠️ Upload retry: " + err.message;
+                isSyncing = false;
+                return;
             }
         }
         
         isSyncing = false;
         const remaining = await getOfflineQueue();
         if (remaining.length === 0) {
-            if (msg) msg.textContent = "✓ All Reports Synced to Telegram & Sheet!";
-        } else {
-            if (msg) msg.textContent = "⚠️ " + remaining.length + " report(s) pending sync.";
+            if (msg) msg.textContent = "✓ All Reports Delivered to Telegram & Sheet!";
         }
     } catch(e) {
         isSyncing = false;
@@ -435,7 +388,7 @@ function setFilter(mode){
 }
 
 function processCanvasFilter(cv, mode){
-    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.90);
+    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.85);
     var ctx = cv.getContext("2d");
     var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
     var d = imgData.data;
@@ -458,7 +411,7 @@ function processCanvasFilter(cv, mode){
         }
     }
     ctx.putImageData(imgData, 0, 0);
-    return cv.toDataURL("image/jpeg", 0.90);
+    return cv.toDataURL("image/jpeg", 0.85);
 }
 
 var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]],DOC=[["f22","Form 22"],["pen","Chassis Print"]];
@@ -552,7 +505,7 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // IndexedDB-ലേക്ക് Base64 ആയി സേവ് ചെയ്ത് ക്ലൗഡിലേക്ക് സിങ്ക് ചെയ്യുന്നു
+    // IndexedDB-ലേക്ക് സേവ് ചെയ്ത് ക്ലൗഡിലേക്ക് സിങ്ക് ചെയ്യുന്നു
     handleCloudSync(b.ch, b.m, blob, b.f);
 
     if(share){
