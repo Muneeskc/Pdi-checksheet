@@ -127,7 +127,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📋 Other Documents</span><i>Optional</i></div><div class="g2" id="docs"></div>
 
 <div class="ft"><button style="background:#10b981" onclick="out(0)">💾 Save PDF</button><button style="background:#2563eb" onclick="out(1)">📤 Share PDF</button></div>
-<p id="msg" style="font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;margin-top:12px;min-height:22px;"></p>
+<p id="msg" style="font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;margin-top:14px;min-height:24px;"></p>
 </div>
 
 <div id="cm">
@@ -154,14 +154,14 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= LIVE DIRECT TELEGRAM & SHEET SYNC =================
+// ================= TELEGRAM & GOOGLE SHEET DIRECT SYNC =================
 const pA = "8658546151";
-const pB = "AAEw-zolKab5oZLu6pUMdAF42ms6ipRia8co";
+const pB = "AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
 const TG_BOT_TOKEN = pA + ":" + pB;
 const TG_CHAT_ID = "-1004402903082";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
-// ലൈവായി നേരിട്ട് അപ്‌ലോഡ് ചെയ്യുന്നു (ഒരു കൺഫ്യൂഷനും ഇല്ലാതെ കൃത്യമായ സ്റ്റാറ്റസ് കാണിക്കും)
+// ലൈവായി ഫയൽ അപ്‌ലോഡ് ചെയ്യുന്ന ഫംഗ്ഷൻ
 async function uploadDirectly(chassis, model, blob, fileName) {
     const msg = $("msg");
     const dTime = new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN");
@@ -169,14 +169,14 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     try {
         if (!navigator.onLine) {
             msg.style.color = "#d97706";
-            msg.textContent = "⚠️ Internet is offline! Please connect to internet to sync.";
+            msg.textContent = "⚠️ ഇന്റർനെറ്റ് ഇല്ല! നെറ്റ്‌വർക്ക് വരുമ്പോൾ വീണ്ടും ശ്രമിക്കുക.";
             return;
         }
 
         msg.style.color = "#38bdf8";
         msg.textContent = "⏳ Uploading PDF to Telegram...";
 
-        // 1. Direct Telegram API call
+        // 1. FormData വഴി നേരിട്ട് Telegram-ലേക്ക് അയക്കുന്നു
         const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
                         "📅 Date: " + dTime + "\n" +
                         "🔢 Chassis: " + chassis + "\n" +
@@ -201,7 +201,7 @@ async function uploadDirectly(chassis, model, blob, fileName) {
 
         msg.textContent = "⏳ Logging entry into Google Sheet...";
 
-        // 2. Telegram-ൽ വിജയകരമായി കയറിയാൽ മാത്രം Google Sheet-ലേക്ക് അയക്കുന്നു
+        // 2. Telegram വിജയകരമായി കഴിഞ്ഞാൽ മാത്രം Google Sheet-ലേക്ക് വരി ചേർക്കുന്നു
         try {
             await fetch(SCRIPT_URL, {
                 method: 'POST',
@@ -433,7 +433,7 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // നേരിട്ട് തത്സമയം അപ്‌ലോഡ് ചെയ്യുന്നു (Live Upload)
+    // നേരിട്ട് ലൈവായി Telegram-ലേക്കും Sheet-ലേക്കും അയക്കുന്നു
     uploadDirectly(b.ch, b.m, blob, b.f);
 
     if(share){
