@@ -163,7 +163,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Base64_Queue_v1", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v5", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -231,19 +231,28 @@ async function processPendingQueue() {
             for (let it of items) {
                 try {
                     let pdfBlob = base64ToBlob(it.base64);
+
+                    // 40MB-ൽ കൂടുതൽ വലിപ്പമുള്ള ബ്ലോക്ക് ആയ ഫയലുകൾ ഡിലീറ്റ് ചെയ്യുക
+                    if (pdfBlob.size > 40 * 1024 * 1024) {
+                        console.warn("Removing oversized file:", it.fileName);
+                        removeFromQueue(it.id);
+                        continue;
+                    }
+
                     let success = await sendToTelegramAndSheet(it.chassis, it.model, pdfBlob, it.fileName, it.dTime);
                     if (success) {
                         removeFromQueue(it.id);
                         if (msg) {
                             msg.style.color = "#10b981";
                             msg.textContent = "✓ Report successfully delivered to Telegram & Sheet!";
+                            setTimeout(() => { msg.textContent = ""; }, 4000);
                         }
                     }
                 } catch(e) {
                     console.error("Queue sync error:", e);
                     if (msg) {
                         msg.style.color = "#ef4444";
-                        msg.textContent = "⚠️ Upload paused: " + (e.message || "Network issue");
+                        msg.textContent = "⚠️ Upload paused: " + (e.message || "Connection issue");
                     }
                 }
             }
@@ -257,7 +266,7 @@ window.addEventListener('online', processPendingQueue);
 
 async function sendToTelegramAndSheet(chassis, model, blob, fileName, dTime) {
     if (!blob || blob.size === 0) {
-        throw new Error("Invalid/Empty PDF File");
+        throw new Error("Empty PDF File");
     }
 
     const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
@@ -282,7 +291,7 @@ async function sendToTelegramAndSheet(chassis, model, blob, fileName, dTime) {
     try { resJson = JSON.parse(resText); } catch(e){}
 
     if (!tgRes.ok || resJson.ok !== true) {
-        throw new Error(resJson.description || ("Telegram Error HTTP " + tgRes.status));
+        throw new Error(resJson.description || ("Telegram HTTP " + tgRes.status));
     }
 
     try {
@@ -311,9 +320,8 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     const dTime = new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN");
 
     msg.style.color = "#38bdf8";
-    msg.textContent = "⏳ Preparing secure upload...";
+    msg.textContent = "⏳ Uploading PDF to Telegram...";
 
-    // Blob സുരക്ഷിതമായി Base64 ആക്കി മാറ്റുന്നു
     let base64 = await blobToBase64(blob);
     let queueId = await saveToQueue({ chassis, model, base64, fileName, dTime });
 
@@ -324,9 +332,6 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 
     try {
-        msg.style.color = "#38bdf8";
-        msg.textContent = "⏳ Uploading PDF to Telegram...";
-
         let ok = await sendToTelegramAndSheet(chassis, model, blob, fileName, dTime);
         if (ok && queueId) {
             removeFromQueue(queueId);
@@ -590,7 +595,6 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    // അപ്‌ലോഡ് തടസ്സപ്പെടാതിരിക്കാൻ പാരലൽ ആയി എക്‌സിക്യൂട്ട് ചെയ്യുന്നു
     uploadDirectly(b.ch, b.m, blob, b.f);
 
     if(share){
