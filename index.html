@@ -161,15 +161,17 @@ const TG_BOT_TOKEN = pA + ":" + pB;
 const TG_CHAT_ID = "-1004402903082";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
-// ================= INDEXEDDB OFFLINE SYNC QUEUE =================
+// ================= CLEAN RESET INDEXEDDB QUEUE =================
+// Pazhaya blocked database kalanju puthiyathu thudangunnu
+try { indexedDB.deleteDatabase("PDI_Queue_DB"); } catch(e){}
+
 let db = null;
-const reqDB = indexedDB.open("PDI_Queue_DB", 2);
+const reqDB = indexedDB.open("PDI_Fresh_Queue", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
-    if (d.objectStoreNames.contains("pending_uploads")) {
-        d.deleteObjectStore("pending_uploads");
+    if (!d.objectStoreNames.contains("pending_uploads")) {
+        d.createObjectStore("pending_uploads", { keyPath: "id", autoIncrement: true });
     }
-    d.createObjectStore("pending_uploads", { keyPath: "id", autoIncrement: true });
 };
 reqDB.onsuccess = (e) => {
     db = e.target.result;
@@ -202,12 +204,6 @@ async function processPendingQueue() {
 
             for (let it of items) {
                 try {
-                    // 45MB-il kooduthalulla pazhaya blocked files thallikkalayuka
-                    if (it.blob && it.blob.size > 45 * 1024 * 1024) {
-                        let delTx = db.transaction("pending_uploads", "readwrite");
-                        delTx.objectStore("pending_uploads").delete(it.id);
-                        continue;
-                    }
                     let success = await sendToTelegramAndSheet(it.chassis, it.model, it.blob, it.fileName, it.dTime);
                     if (success) {
                         let delTx = db.transaction("pending_uploads", "readwrite");
@@ -304,7 +300,7 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 }
 
-// GENERAL COMPRESSION (Vehicle Photos, Stickers & Battery - File size nannaayi kuraykkaan)
+// 1280px SMART COMPRESSION (Vehicle Photos, Stickers & Battery)
 function smartCompress(base64Str) {
     return new Promise((resolve) => {
         let img = new Image();
@@ -314,7 +310,7 @@ function smartCompress(base64Str) {
             let width = img.width;
             let height = img.height;
 
-            const MAX_WIDTH = 1280; // Vehicle photos 1280px limit
+            const MAX_WIDTH = 1280;
             if (width > MAX_WIDTH) {
                 height = Math.round((height * MAX_WIDTH) / width);
                 width = MAX_WIDTH;
@@ -327,7 +323,7 @@ function smartCompress(base64Str) {
             ctx.imageSmoothingQuality = 'medium';
             ctx.drawImage(img, 0, 0, width, height);
 
-            resolve(canvas.toDataURL('image/jpeg', 0.70)); // 70% quality: super compact
+            resolve(canvas.toDataURL('image/jpeg', 0.70));
         };
         img.onerror = () => resolve(base64Str);
     });
@@ -343,7 +339,7 @@ function checklistPreCompress(base64Str) {
             let width = img.width;
             let height = img.height;
 
-            const MAX_DIM = 2600; // Text crisp aayi kanikkan 2600px
+            const MAX_DIM = 2600;
             if (width > MAX_DIM || height > MAX_DIM) {
                 if (width > height) {
                     height = Math.round((height * MAX_DIM) / width);
@@ -443,7 +439,6 @@ function setFilter(mode){
 }
 
 function processCanvasFilter(cv, mode){
-    // Checklist 88% Quality: Valare crisp text & compact size
     if(mode === 'original') return cv.toDataURL("image/jpeg", 0.88);
     var ctx = cv.getContext("2d");
     var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
@@ -519,7 +514,6 @@ function closeC(){if(cr){cr.destroy();cr=null}$("cm").style.display="none"}
 
 function doneC(){
     if(!cr)return;
-    // Checklist crop: 2600px sharp canvas
     var canvas = cr.getCroppedCanvas({
         maxWidth: 2600,
         maxHeight: 2600,
@@ -566,7 +560,6 @@ function build(){
         if(D.doc.pen)img(p,D.doc.pen,110,120,86,60,"Chassis Print / Impression");
     }
 
-    // Checklist HD Render
     D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"")});
     return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",ch:ch,m:m};
 }
@@ -593,14 +586,12 @@ async function out(share){
 }
 </script>
 
-<!-- Service Worker Registration with Cache Auto-Update -->
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js?v=' + Date.now())
       .then(reg => {
         reg.update();
-        console.log('PWA Service Worker updated!');
       })
       .catch(err => console.error('PWA Service Worker failed', err));
   });
