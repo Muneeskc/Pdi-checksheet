@@ -34,6 +34,7 @@ h1{font-size:20px;color:var(--ac);text-align:center;margin:0}.sub{text-align:cen
 .row{display:flex;gap:8px;justify-content:center}
 button{border:0;border-radius:8px;font-weight:700;font-size:12px;padding:10px 14px;cursor:pointer;color:#fff;background:var(--bl)}
 button.gl{background:var(--in);color:var(--tx);border:1px solid var(--bd)}
+button:disabled{opacity:0.6;cursor:not-allowed}
 #st{font-size:12px;color:#d97706;margin-top:8px;min-height:16px;font-weight:600}
 .box{background:var(--in);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:14px}
 label{display:block;font-size:13px;font-weight:600;margin:0 0 5px;color:var(--mu)}
@@ -126,7 +127,10 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
 <div class="sec"><span>📋 Other Documents</span><i>Optional</i></div><div class="g2" id="docs"></div>
 
-<div class="ft"><button style="background:#10b981" onclick="out(0)">💾 Save PDF</button><button style="background:#2563eb" onclick="out(1)">📤 Share PDF</button></div>
+<div class="ft">
+    <button id="btnSave" style="background:#10b981" onclick="out(0)">💾 Save PDF</button>
+    <button id="btnShare" style="background:#2563eb" onclick="out(1)">📤 Share PDF</button>
+</div>
 <p id="msg" style="font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;margin-top:14px;min-height:24px;word-break:break-word;"></p>
 </div>
 
@@ -232,9 +236,7 @@ async function processPendingQueue() {
                 try {
                     let pdfBlob = base64ToBlob(it.base64);
 
-                    // 40MB-ൽ കൂടുതൽ വലിപ്പമുള്ള ബ്ലോക്ക് ആയ ഫയലുകൾ ഡിലീറ്റ് ചെയ്യുക
                     if (pdfBlob.size > 40 * 1024 * 1024) {
-                        console.warn("Removing oversized file:", it.fileName);
                         removeFromQueue(it.id);
                         continue;
                     }
@@ -591,25 +593,44 @@ function build(){
     return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",ch:ch,m:m};
 }
 
+let isExporting = false;
 async function out(share){
+    if(isExporting) return;
+    
     var b=build();if(!b)return;
-    var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-    uploadDirectly(b.ch, b.m, blob, b.f);
+    isExporting = true;
+    const btnSave = $("btnSave");
+    const btnShare = $("btnShare");
+    if(btnSave) { btnSave.disabled = true; btnSave.textContent = "⏳ Processing..."; }
+    if(btnShare) { btnShare.disabled = true; btnShare.textContent = "⏳ Processing..."; }
 
-    if(share){
-        try{
-            if(navigator.canShare&&navigator.canShare({files:[f]})){
-                await navigator.share({files:[f],title:"PDI Report - "+b.f});
-                return;
+    try {
+        var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
+
+        uploadDirectly(b.ch, b.m, blob, b.f);
+
+        if(share){
+            try{
+                if(navigator.canShare&&navigator.canShare({files:[f]})){
+                    await navigator.share({files:[f],title:"PDI Report - "+b.f});
+                }
+            }catch(e){
+                if(e.name!="AbortError") console.error(e);
             }
-        }catch(e){if(e.name=="AbortError")return}
+        } else {
+            var a=document.createElement("a");
+            a.href=URL.createObjectURL(blob);
+            a.download=b.f;
+            a.click();
+        }
+    } finally {
+        setTimeout(() => {
+            isExporting = false;
+            if(btnSave) { btnSave.disabled = false; btnSave.textContent = "💾 Save PDF"; }
+            if(btnShare) { btnShare.disabled = false; btnShare.textContent = "📤 Share PDF"; }
+        }, 1500);
     }
-
-    var a=document.createElement("a");
-    a.href=URL.createObjectURL(blob);
-    a.download=b.f;
-    a.click();
 }
 </script>
 
