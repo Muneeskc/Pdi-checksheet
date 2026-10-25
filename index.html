@@ -156,16 +156,14 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <script>
 // ================= TELEGRAM & GOOGLE SHEET DIRECT SYNC =================
 const pA = "8658546151";
-const pB = "AAEw-zolKab5oZLu6pUMdAF42ms6ipRia8co";
+const pB = "AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
 const TG_BOT_TOKEN = pA + ":" + pB;
 const TG_CHAT_ID = "-1004402903082";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
-// ================= CLEAN RESET INDEXEDDB QUEUE =================
-try { indexedDB.deleteDatabase("PDI_Queue_DB"); } catch(e){}
-
+// ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Fresh_Queue_v3", 1);
+const reqDB = indexedDB.open("PDI_Base64_Queue_v1", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -177,10 +175,39 @@ reqDB.onsuccess = (e) => {
     processPendingQueue();
 };
 
+function blobToBase64(blob) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+    });
+}
+
+function base64ToBlob(base64Data, type="application/pdf") {
+    const parts = base64Data.split(';base64,');
+    const byteCharacters = atob(parts[1]);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: type });
+}
+
 function saveToQueue(item) {
-    if (!db) return;
+    return new Promise((resolve) => {
+        if (!db) { resolve(null); return; }
+        let tx = db.transaction("pending_uploads", "readwrite");
+        let req = tx.objectStore("pending_uploads").add(item);
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = () => resolve(null);
+    });
+}
+
+function removeFromQueue(id) {
+    if (!db || !id) return;
     let tx = db.transaction("pending_uploads", "readwrite");
-    tx.objectStore("pending_uploads").add(item);
+    tx.objectStore("pending_uploads").delete(id);
 }
 
 let isSyncing = false;
@@ -203,24 +230,22 @@ async function processPendingQueue() {
 
             for (let it of items) {
                 try {
-                    if (it.blob && it.blob.size > 45 * 1024 * 1024) {
-                        let delTx = db.transaction("pending_uploads", "readwrite");
-                        delTx.objectStore("pending_uploads").delete(it.id);
-                        continue;
-                    }
-                    let success = await sendToTelegramAndSheet(it.chassis, it.model, it.blob, it.fileName, it.dTime);
+                    let pdfBlob = base64ToBlob(it.base64);
+                    let success = await sendToTelegramAndSheet(it.chassis, it.model, pdfBlob, it.fileName, it.dTime);
                     if (success) {
-                        let delTx = db.transaction("pending_uploads", "readwrite");
-                        delTx.objectStore("pending_uploads").delete(it.id);
+                        removeFromQueue(it.id);
+                        if (msg) {
+                            msg.style.color = "#10b981";
+                            msg.textContent = "✓ Report successfully delivered to Telegram & Sheet!";
+                        }
                     }
                 } catch(e) {
                     console.error("Queue sync error:", e);
+                    if (msg) {
+                        msg.style.color = "#ef4444";
+                        msg.textContent = "⚠️ Upload paused: " + (e.message || "Network issue");
+                    }
                 }
-            }
-            if (msg) {
-                msg.style.color = "#10b981";
-                msg.textContent = "✓ All pending reports synced successfully!";
-                setTimeout(() => { msg.textContent = ""; }, 4000);
             }
         }
         isSyncing = false;
@@ -231,6 +256,10 @@ async function processPendingQueue() {
 window.addEventListener('online', processPendingQueue);
 
 async function sendToTelegramAndSheet(chassis, model, blob, fileName, dTime) {
+    if (!blob || blob.size === 0) {
+        throw new Error("Invalid/Empty PDF File");
+    }
+
     const caption = "🚗 NEW VEHICLE INWARD (PDI)\n\n" +
                     "📅 Date: " + dTime + "\n" +
                     "🔢 Chassis: " + chassis + "\n" +
@@ -252,8 +281,8 @@ async function sendToTelegramAndSheet(chassis, model, blob, fileName, dTime) {
     let resJson = {};
     try { resJson = JSON.parse(resText); } catch(e){}
 
-    if (!tgRes.ok || !resJson.ok) {
-        throw new Error(resJson.description || ("HTTP " + tgRes.status));
+    if (!tgRes.ok || resJson.ok !== true) {
+        throw new Error(resJson.description || ("Telegram Error HTTP " + tgRes.status));
     }
 
     try {
@@ -281,8 +310,14 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     const msg = $("msg");
     const dTime = new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN");
 
+    msg.style.color = "#38bdf8";
+    msg.textContent = "⏳ Preparing secure upload...";
+
+    // Blob സുരക്ഷിതമായി Base64 ആക്കി മാറ്റുന്നു
+    let base64 = await blobToBase64(blob);
+    let queueId = await saveToQueue({ chassis, model, base64, fileName, dTime });
+
     if (!navigator.onLine) {
-        saveToQueue({ chassis, model, blob, fileName, dTime });
         msg.style.color = "#d97706";
         msg.textContent = "⚠️ Internet illa! Report phone-il save cheythu. Net varumbol upload aakum.";
         return;
@@ -292,19 +327,22 @@ async function uploadDirectly(chassis, model, blob, fileName) {
         msg.style.color = "#38bdf8";
         msg.textContent = "⏳ Uploading PDF to Telegram...";
 
-        await sendToTelegramAndSheet(chassis, model, blob, fileName, dTime);
+        let ok = await sendToTelegramAndSheet(chassis, model, blob, fileName, dTime);
+        if (ok && queueId) {
+            removeFromQueue(queueId);
+        }
 
         msg.style.color = "#10b981";
         msg.textContent = "✓ Successfully Delivered to Telegram & Sheet!";
 
     } catch (err) {
-        saveToQueue({ chassis, model, blob, fileName, dTime });
+        console.error("Upload error:", err);
         msg.style.color = "#d97706";
-        msg.textContent = "⚠️ Upload paused. Saved to queue, will auto-sync soon!";
+        msg.textContent = "⚠️ " + (err.message || "Upload paused") + ". Saved to queue!";
     }
 }
 
-// 1280px STRICT COMPRESSION (Vehicle Photos, Stickers & Battery: പരമാവധി 200-300KB)
+// 1280px STRICT COMPRESSION (Vehicle Photos, Stickers & Battery)
 function smartCompress(fileOrBase64) {
     return new Promise((resolve) => {
         let img = new Image();
@@ -382,7 +420,6 @@ async function rd(f,cb,isCk){
         r.onload=function(e){ cb(e.target.result); };
         r.readAsDataURL(f);
     } else {
-        // Vehicle photos നിർബന്ധമായും കംപ്രസ് ചെയ്ത ശേഷം മാത്രമേ നൽകൂ
         let compactImage = await smartCompress(f);
         cb(compactImage);
     }
@@ -409,7 +446,6 @@ function setFilter(mode){
 }
 
 function processCanvasFilter(cv, mode){
-    // Checklist 92% Quality (Ultra HD clarity)
     if(mode === 'original') return cv.toDataURL("image/jpeg", 0.92);
     var ctx = cv.getContext("2d");
     var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
@@ -499,7 +535,6 @@ function closeC(){if(cr){cr.destroy();cr=null}$("cm").style.display="none"}
 
 function doneC(){
     if(!cr)return;
-    // Checklist crop: 3000px Ultra HD Canvas
     var canvas = cr.getCroppedCanvas({
         maxWidth: 3000,
         maxHeight: 3000,
@@ -524,7 +559,6 @@ function img(p,u,x,y,w,h,l,isChecklist){
     p.setFontSize(8);
     p.setTextColor(71,85,105);
     if(l)p.text(l,x,y-2);
-    // Checklist-ന് മാത്രം SLOW (ക്ലിയർ ടെക്സ്റ്റ് റെൻഡറിങ്), ബാക്കി ഫോട്ടോകൾക്ക് FAST
     var renderMode = isChecklist ? 'SLOW' : 'FAST';
     if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,renderMode);
     else{p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20)}
@@ -548,7 +582,6 @@ function build(){
         if(D.doc.pen)img(p,D.doc.pen,110,120,86,60,"Chassis Print / Impression",false);
     }
 
-    // Checklist HD Render (SLOW mode)
     D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"",true)});
     return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",ch:ch,m:m};
 }
@@ -557,6 +590,7 @@ async function out(share){
     var b=build();if(!b)return;
     var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
+    // അപ്‌ലോഡ് തടസ്സപ്പെടാതിരിക്കാൻ പാരലൽ ആയി എക്‌സിക്യൂട്ട് ചെയ്യുന്നു
     uploadDirectly(b.ch, b.m, blob, b.f);
 
     if(share){
