@@ -109,7 +109,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📸 Additional Inspection Photos</span><i>Optional (Multi-select)</i></div>
 <div class="box" style="text-align:center"><div class="row"><button onclick="pick(1,addP)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP,1)">🖼️ From Gallery</button></div><div class="gal" id="ga"></div></div>
 
-<div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; HD 88%</i></div>
+<div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; HD 92%</i></div>
 <div class="box" style="text-align:center">
     <div class="row"><button onclick="pick(1,newCk,0,true)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk,0,true)">🖼️ From Gallery</button></div>
     <div class="gal" id="gc"></div>
@@ -156,17 +156,16 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <script>
 // ================= TELEGRAM & GOOGLE SHEET DIRECT SYNC =================
 const pA = "8658546151";
-const pB = "AAEw-zolKb5oZLu6pUMdAF42ms6ipRia8co";
+const pB = "AAEw-zolKab5oZLu6pUMdAF42ms6ipRia8co";
 const TG_BOT_TOKEN = pA + ":" + pB;
 const TG_CHAT_ID = "-1004402903082";
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
 
 // ================= CLEAN RESET INDEXEDDB QUEUE =================
-// Pazhaya blocked database kalanju puthiyathu thudangunnu
 try { indexedDB.deleteDatabase("PDI_Queue_DB"); } catch(e){}
 
 let db = null;
-const reqDB = indexedDB.open("PDI_Fresh_Queue", 1);
+const reqDB = indexedDB.open("PDI_Fresh_Queue_v3", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -204,13 +203,18 @@ async function processPendingQueue() {
 
             for (let it of items) {
                 try {
+                    if (it.blob && it.blob.size > 45 * 1024 * 1024) {
+                        let delTx = db.transaction("pending_uploads", "readwrite");
+                        delTx.objectStore("pending_uploads").delete(it.id);
+                        continue;
+                    }
                     let success = await sendToTelegramAndSheet(it.chassis, it.model, it.blob, it.fileName, it.dTime);
                     if (success) {
                         let delTx = db.transaction("pending_uploads", "readwrite");
                         delTx.objectStore("pending_uploads").delete(it.id);
                     }
                 } catch(e) {
-                    console.error("Queue item sync error:", e);
+                    console.error("Queue sync error:", e);
                 }
             }
             if (msg) {
@@ -300,15 +304,16 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 }
 
-// 1280px SMART COMPRESSION (Vehicle Photos, Stickers & Battery)
-function smartCompress(base64Str) {
+// 1280px STRICT COMPRESSION (Vehicle Photos, Stickers & Battery: പരമാവധി 200-300KB)
+function smartCompress(fileOrBase64) {
     return new Promise((resolve) => {
         let img = new Image();
-        img.src = base64Str;
+        let src = typeof fileOrBase64 === 'string' ? fileOrBase64 : URL.createObjectURL(fileOrBase64);
+        img.src = src;
         img.onload = () => {
             let canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
+            let width = img.naturalWidth || img.width;
+            let height = img.naturalHeight || img.height;
 
             const MAX_WIDTH = 1280;
             if (width > MAX_WIDTH) {
@@ -323,43 +328,10 @@ function smartCompress(base64Str) {
             ctx.imageSmoothingQuality = 'medium';
             ctx.drawImage(img, 0, 0, width, height);
 
+            if (typeof fileOrBase64 !== 'string') URL.revokeObjectURL(src);
             resolve(canvas.toDataURL('image/jpeg', 0.70));
         };
-        img.onerror = () => resolve(base64Str);
-    });
-}
-
-// CHECKLIST SPECIAL COMPRESSION (2600px Ultra HD + 88% Quality)
-function checklistPreCompress(base64Str) {
-    return new Promise((resolve) => {
-        let img = new Image();
-        img.src = base64Str;
-        img.onload = () => {
-            let canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
-
-            const MAX_DIM = 2600;
-            if (width > MAX_DIM || height > MAX_DIM) {
-                if (width > height) {
-                    height = Math.round((height * MAX_DIM) / width);
-                    width = MAX_DIM;
-                } else {
-                    width = Math.round((width * MAX_DIM) / height);
-                    height = MAX_DIM;
-                }
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-            let ctx = canvas.getContext('2d', { alpha: false });
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.drawImage(img, 0, 0, width, height);
-
-            resolve(canvas.toDataURL('image/jpeg', 0.88));
-        };
-        img.onerror = () => resolve(base64Str);
+        img.onerror = () => resolve(src);
     });
 }
 
@@ -396,26 +368,24 @@ function pick(cam,cb,multi,isCk){
     i.accept="image/*";
     if(cam)i.setAttribute("capture","environment");
     if(multi)i.multiple=true;
-    i.onchange=function(){
-        Array.from(i.files).forEach(function(f){
-            rd(f,cb,isCk);
-        });
+    i.onchange=async function(){
+        for (let f of Array.from(i.files)) {
+            await rd(f, cb, isCk);
+        }
     };
     i.click();
 }
 
-function rd(f,cb,isCk){
-    var r=new FileReader();
-    r.onload=async function(e){ 
-        if(isCk){
-            let hdChecklist = await checklistPreCompress(e.target.result);
-            cb(hdChecklist);
-        } else {
-            let compactImage = await smartCompress(e.target.result);
-            cb(compactImage);
-        }
-    };
-    r.readAsDataURL(f);
+async function rd(f,cb,isCk){
+    if(isCk){
+        var r=new FileReader();
+        r.onload=function(e){ cb(e.target.result); };
+        r.readAsDataURL(f);
+    } else {
+        // Vehicle photos നിർബന്ധമായും കംപ്രസ് ചെയ്ത ശേഷം മാത്രമേ നൽകൂ
+        let compactImage = await smartCompress(f);
+        cb(compactImage);
+    }
 }
 
 function setBattery(u){
@@ -439,7 +409,8 @@ function setFilter(mode){
 }
 
 function processCanvasFilter(cv, mode){
-    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.88);
+    // Checklist 92% Quality (Ultra HD clarity)
+    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.92);
     var ctx = cv.getContext("2d");
     var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
     var d = imgData.data;
@@ -462,12 +433,26 @@ function processCanvasFilter(cv, mode){
         }
     }
     ctx.putImageData(imgData, 0, 0);
-    return cv.toDataURL("image/jpeg", 0.88);
+    return cv.toDataURL("image/jpeg", 0.92);
 }
 
 var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]],DOC=[["f22","Form 22"],["pen","Chassis Print"]];
-function card(host,store,k,n,ic,crop){var d=document.createElement("div");d.className="card";d.innerHTML='<div class="l">'+n+'</div><div class="p">'+ic+'</div><div class="b"><button>Cam</button><button class="gl">Gal</button></div>';
-var bs=d.querySelectorAll("button"),set=function(u){store[k]=u;d.querySelector(".p").innerHTML='<img src="'+u+'">'};var go=crop?function(u){ei=-2;tg=function(x){set(x)};openC(u)}:set;bs[0].onclick=function(){pick(1,go)};bs[1].onclick=function(){pick(0,go)};$(host).appendChild(d)}
+
+function card(host,store,k,n,ic,crop){
+    var d=document.createElement("div");
+    d.className="card";
+    d.innerHTML='<div class="l">'+n+'</div><div class="p">'+ic+'</div><div class="b"><button>Cam</button><button class="gl">Gal</button></div>';
+    var bs=d.querySelectorAll("button");
+    var set=function(u){
+        store[k]=u;
+        d.querySelector(".p").innerHTML='<img src="'+u+'">';
+    };
+    var go=crop?function(u){ei=-2;tg=function(x){set(x)};openC(u)}:set;
+    bs[0].onclick=function(){pick(1,go,0,crop?true:false)};
+    bs[1].onclick=function(){pick(0,go,0,crop?true:false)};
+    $(host).appendChild(d);
+}
+
 var S0='<svg viewBox="0 0 100 60">',SH='<path d="M8 40V34Q8 30 14 29L28 26L38 16Q41 13 48 13H64Q70 13 74 18L82 27L90 30Q93 31 93 36V40Z"/><path d="M42 18H48V26H34ZM52 18H64Q67 18 69 21L73 26H52Z" fill="#fff" opacity=".7"/><circle cx="27" cy="42" r="7" fill="#334155" stroke="#fff" stroke-width="1.5"/><circle cx="75" cy="42" r="7" fill="#334155" stroke="#fff" stroke-width="1.5"/>',
 FV='<path d="M22 46V36Q22 30 28 28L36 16Q40 12 50 12Q60 12 64 16L72 28Q78 30 78 36V46Z"/><path d="M38 18H62L68 27H32Z" fill="#fff" opacity=".7"/><rect x="20" y="46" width="10" height="9" rx="2"/><rect x="70" y="46" width="10" height="9" rx="2"/>',
 MR='<g transform="translate(100 0) scale(-1 1)">',
@@ -514,9 +499,10 @@ function closeC(){if(cr){cr.destroy();cr=null}$("cm").style.display="none"}
 
 function doneC(){
     if(!cr)return;
+    // Checklist crop: 3000px Ultra HD Canvas
     var canvas = cr.getCroppedCanvas({
-        maxWidth: 2600,
-        maxHeight: 2600,
+        maxWidth: 3000,
+        maxHeight: 3000,
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high'
     });
@@ -533,12 +519,14 @@ function doneC(){
     closeC();
 }
 function hd(p,t,s){p.setFillColor(15,23,42);p.rect(0,0,210,s||24,"F");p.setTextColor(255,255,255);p.setFontSize(14);p.setFont(undefined,"bold");p.text(t,14,16)}
-function img(p,u,x,y,w,h,l){
+function img(p,u,x,y,w,h,l,isChecklist){
     p.setFont(undefined,"bold");
     p.setFontSize(8);
     p.setTextColor(71,85,105);
     if(l)p.text(l,x,y-2);
-    if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,'FAST');
+    // Checklist-ന് മാത്രം SLOW (ക്ലിയർ ടെക്സ്റ്റ് റെൻഡറിങ്), ബാക്കി ഫോട്ടോകൾക്ക് FAST
+    var renderMode = isChecklist ? 'SLOW' : 'FAST';
+    if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,renderMode);
     else{p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20)}
 }
 
@@ -550,17 +538,18 @@ function build(){
     [["Chassis Number:",ch],["Vehicle Model:",m],["Inspection Date:",n.toLocaleDateString("en-GB")+" "+n.toLocaleTimeString("en-IN")]].forEach(function(r,i){p.setFont(undefined,"bold");p.text(r[0],18,36+i*8);p.setFont(undefined,"normal");p.text(r[1],54,36+i*8)});
     p.setFont(undefined,"bold");p.setFontSize(11);p.setTextColor(2,132,199);p.text("Vehicle Photos",14,66);
     var L=SIX.map(function(s,i){return[D.six[s[0]],(i+1)+". "+s[1]]}).concat(D.add.map(function(u,i){return[u,"Additional Photo "+(i+1)]}));
-    L.forEach(function(it,i){var x=14+(i%3)*62,y;if(i<12)y=72+Math.floor(i/3)*50;else{var j=i-12;if(j%15==0){p.addPage();hd(p,"PDI REPORT",20)}y=36+Math.floor((j%15)/3)*50}img(p,it[0],x,y,58,42,it[1])});
+    L.forEach(function(it,i){var x=14+(i%3)*62,y;if(i<12)y=72+Math.floor(i/3)*50;else{var j=i-12;if(j%15==0){p.addPage();hd(p,"PDI REPORT",20)}y=36+Math.floor((j%15)/3)*50}img(p,it[0],x,y,58,42,it[1],false)});
 
     if(D.sticker||D.doc.f22||D.doc.pen||D.battery){
         p.addPage();hd(p,"PDI REPORT");p.setFontSize(11);p.setTextColor(2,132,199);p.text("2. Documents & Battery Inspection: "+ch,14,34);
-        if(D.sticker)img(p,D.sticker,14,42,86,70,"Windshield Barcode Sticker");
-        if(D.battery)img(p,D.battery,110,42,86,70,"LV Battery Photo");
-        if(D.doc.f22)img(p,D.doc.f22,14,120,86,110,"Form 22 Copy");
-        if(D.doc.pen)img(p,D.doc.pen,110,120,86,60,"Chassis Print / Impression");
+        if(D.sticker)img(p,D.sticker,14,42,86,70,"Windshield Barcode Sticker",false);
+        if(D.battery)img(p,D.battery,110,42,86,70,"LV Battery Photo",false);
+        if(D.doc.f22)img(p,D.doc.f22,14,120,86,110,"Form 22 Copy",false);
+        if(D.doc.pen)img(p,D.doc.pen,110,120,86,60,"Chassis Print / Impression",false);
     }
 
-    D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"")});
+    // Checklist HD Render (SLOW mode)
+    D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"",true)});
     return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",ch:ch,m:m};
 }
 
