@@ -16,7 +16,6 @@
 <!-- Libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 
 <style>
 :root{--bg:#0b1120;--cd:#1e293b;--in:#0f172a;--bd:#475569;--tx:#f8fafc;--mu:#94a3b8;--ac:#38bdf8;--bl:#0284c7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -54,38 +53,16 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 .th .x{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#ef4444;padding:0;font-size:10px}
 .th .e{position:absolute;bottom:2px;left:2px;padding:1px 4px;font-size:9px;background:rgba(15,23,42,.85);border:1px solid var(--ac);color:var(--ac)}
 .ft{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px}.ft button{padding:15px;font-size:15px;border-radius:12px}
+
+/* Scanner Overlay */
 #cm{display:none;position:fixed;inset:0;background:#000;z-index:99;flex-direction:column}
 .ch{padding:10px 14px;background:#1e293b;color:#fff;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;padding-top:calc(10px + env(safe-area-inset-top,0px))}
-.cb{flex:1;min-height:0;padding:8px}.cb img{display:block;max-width:100%}
+.cb{flex:1;min-height:0;padding:8px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;touch-action:none;}
+#scCanvas{display:block;max-width:100%;max-height:100%;object-fit:contain;cursor:crosshair;}
 .cf{padding:10px;background:#1e293b;display:flex;gap:8px;flex-direction:column;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .cf button{background:#334155;font-size:12px;padding:8px 10px}
 .cf .filter-btn{border:1px solid var(--bd);background:var(--in);color:var(--tx)}
 .cf .filter-btn.active{background:#0284c7;color:#fff;border-color:#38bdf8;font-weight:bold}
-
-#cm.flt-original .cropper-container img { filter: none !important; }
-#cm.flt-enhance .cropper-container img { filter: contrast(1.4) brightness(1.15) saturate(1.2) !important; }
-#cm.flt-grayscale .cropper-container img { filter: grayscale(100%) contrast(1.2) !important; }
-#cm.flt-bw .cropper-container img { filter: grayscale(100%) contrast(2.6) brightness(1.2) !important; }
-
-.cropper-container{direction:ltr;font-size:0;line-height:0;position:relative;touch-action:none;user-select:none}
-.cropper-container img{display:block;height:100%;max-height:none!important;max-width:none!important;min-height:0!important;min-width:0!important;width:100%}
-.cropper-canvas,.cropper-crop-box,.cropper-drag-box,.cropper-modal,.cropper-wrap-box{inset:0;position:absolute}
-.cropper-canvas,.cropper-wrap-box{overflow:hidden}
-.cropper-drag-box{background:#fff;opacity:0}.cropper-modal{background:#000;opacity:.55}
-.cropper-view-box{display:block;height:100%;width:100%;outline:1px solid #39f;overflow:hidden}
-.cropper-dashed{border:0 dashed #eee;display:block;opacity:.5;position:absolute}
-.dashed-h{border-bottom-width:1px;border-top-width:1px;height:33.3%;left:0;top:33.3%;width:100%}
-.dashed-v{border-left-width:1px;border-right-width:1px;height:100%;left:33.3%;top:0;width:33.3%}
-.cropper-face,.cropper-line,.cropper-point{display:block;height:100%;opacity:.1;position:absolute;width:100%}
-.cropper-face{background:#fff;left:0;top:0}.cropper-line{background:#39f}
-.line-e{cursor:ew-resize;right:-6px;top:0;width:12px}.line-w{cursor:ew-resize;left:-6px;top:0;width:12px}
-.line-n{cursor:ns-resize;height:12px;left:0;top:-6px}.line-s{bottom:-6px;cursor:ns-resize;height:12px;left:0}
-.cropper-point{background:#39f;height:16px;opacity:.85;width:16px}
-.point-e{cursor:ew-resize;margin-top:-8px;right:-8px;top:50%}.point-w{cursor:ew-resize;left:-8px;margin-top:-8px;top:50%}
-.point-n{cursor:ns-resize;left:50%;margin-left:-8px;top:-8px}.point-s{bottom:-8px;cursor:ns-resize;left:50%;margin-left:-8px}
-.point-ne{cursor:nesw-resize;right:-8px;top:-8px}.point-nw{cursor:nwse-resize;left:-8px;top:-8px}
-.point-sw{bottom:-8px;cursor:nesw-resize;left:-8px}.point-se{bottom:-8px;cursor:nwse-resize;right:-8px}
-.cropper-move{cursor:move}.cropper-hidden{display:none!important}.cropper-hide{display:block;height:0;position:absolute;width:0}.cropper-invisible{opacity:0}
 </style>
 </head>
 <body>
@@ -110,7 +87,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📸 Additional Inspection Photos</span><i>Optional (Multi-select)</i></div>
 <div class="box" style="text-align:center"><div class="row"><button onclick="pick(1,addP)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP,1)">🖼️ From Gallery</button></div><div class="gal" id="ga"></div></div>
 
-<div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; HD Clarity</i></div>
+<div class="sec"><span>📑 Checklist (4-Corner Perspective Scanner)</span><i>Auto-Detect &amp; Corner Drag</i></div>
 <div class="box" style="text-align:center">
     <div class="row"><button onclick="pick(1,newCk,0,true)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk,0,true)">🖼️ From Gallery</button></div>
     <div class="gal" id="gc"></div>
@@ -134,23 +111,26 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <p id="msg" style="font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;margin-top:14px;min-height:24px;word-break:break-word;"></p>
 </div>
 
+<!-- 4-CORNER PERSPECTIVE CROP MODAL -->
 <div id="cm">
-    <div class="ch"><span>Checklist Scanner &amp; Enhance</span><button style="background:#ef4444" onclick="closeC()">✕ Cancel</button></div>
-    <div class="cb"><img id="ci"></div>
+    <div class="ch"><span>Checklist Corner Adjustment</span><button style="background:#ef4444" onclick="closeC()">✕ Cancel</button></div>
+    <div class="cb" id="canvasBox">
+        <canvas id="scCanvas"></canvas>
+    </div>
     <div class="cf">
         <div style="text-align:center;font-size:12px;color:var(--mu);font-weight:bold;">Enhance Filter:</div>
         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
             <button type="button" class="filter-btn" id="f-orig" onclick="setFilter('original')">Original</button>
             <button type="button" class="filter-btn active" id="f-magic" onclick="setFilter('enhance')">⚡ Magic Color</button>
             <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
-            <button type="button" class="filter-btn" id="f-bw" onclick="setFilter('bw')">Pure White (Scan)</button>
+            <button type="button" class="filter-btn" id="f-bw" onclick="setFilter('bw')">Pure White</button>
         </div>
         <div style="display:flex;gap:6px;justify-content:space-between;align-items:center;margin-top:6px;">
             <div style="display:flex;gap:5px;">
-                <button onclick="cr.rotate(-90)">↺ Left</button>
-                <button onclick="cr.rotate(90)">↻ Right</button>
-                <button style="background:#0284c7" onclick="auto()">⚡ Re-Detect</button>
-                <button onclick="cr.reset()">Full</button>
+                <button onclick="rotateImg(-90)">↺ Left</button>
+                <button onclick="rotateImg(90)">↻ Right</button>
+                <button style="background:#0284c7" onclick="autoDetectCorners()">⚡ Detect</button>
+                <button onclick="resetCorners()">Full</button>
             </div>
             <button style="background:#10b981;font-size:13px;padding:9px 18px" onclick="doneC()">✓ Done Crop</button>
         </div>
@@ -349,7 +329,7 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 }
 
-// CHECKLIST OZHICHULLA ELLAAM COMPRESS CHEYYUNNA FUNCTION (1200px + 0.65 JPEG)
+// BULLETPROOF SMART COMPRESS: 1200px + 0.65 JPEG (Photos 200KB-il nirkkum)
 function smartCompress(fileOrBase64) {
     return new Promise((resolve) => {
         let img = new Image();
@@ -379,7 +359,6 @@ function smartCompress(fileOrBase64) {
                 if (isBlob) URL.revokeObjectURL(src);
                 resolve(compressedData);
             } catch(e) {
-                console.error("Compression error:", e);
                 if (isBlob) URL.revokeObjectURL(src);
                 resolve(src);
             }
@@ -393,7 +372,7 @@ function smartCompress(fileOrBase64) {
 }
 
 // ================= APP ORIGINAL LOGIC =================
-var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
+var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},ei=-1,tg=null;
 var selectedFilter = 'enhance';
 
 var CAT={"Nexon":["Smart","Smart+","Smart+ S","Pure","Pure S","Creative","Creative+","Creative+ S","Fearless","Fearless S","Fearless+ S","Fearless+ S Dark"],
@@ -433,7 +412,6 @@ function pick(cam,cb,multi,isCk){
     i.click();
 }
 
-// Checklist-nu direct original file, baki ellaathinum smartCompress
 async function rd(f,cb,isCk){
     if(isCk){
         var r = new FileReader();
@@ -460,9 +438,7 @@ function setFilter(mode){
     if(mode === 'enhance') $('f-magic').classList.add('active');
     if(mode === 'grayscale') $('f-gray').classList.add('active');
     if(mode === 'bw') $('f-bw').classList.add('active');
-
-    var modal = $('cm');
-    modal.className = 'flt-' + mode;
+    redrawCanvas();
 }
 
 // High Contrast Document Filter (Clean white paper + Dark sharp text)
@@ -502,7 +478,6 @@ function processCanvasFilter(cv, mode){
 
 var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]],DOC=[["f22","Form 22"],["pen","Chassis Print"]];
 
-// Documents-um compress aayi mathram store aakunnu
 function card(host,store,k,n,ic,crop){
     var d=document.createElement("div");
     d.className="card";
@@ -547,55 +522,288 @@ for(var a=0;a<3&&!out;a++){var c=document.createElement("canvas"),s=Math.min(1,1
 try{if("BarcodeDetector" in window){var r=await new BarcodeDetector({formats:["code_128","code_39","qr_code"]}).detect(c);if(r.length&&r[0].rawValue)out=r[0].rawValue}}catch(e){}
 if(!out&&window.ZXing){try{var x=await new ZXing.BrowserMultiFormatReader().decodeFromCanvas(c);if(x)out=x.getText()}catch(e){}}}
 return out.replace(/[^A-Z0-9]/gi,"").toUpperCase()}
-function box(im){var cv=document.createElement("canvas"),W=200,H=Math.round(im.naturalHeight*W/im.naturalWidth);cv.width=W;cv.height=H;var g=cv.getContext("2d");g.drawImage(im,0,0,W,H);var d=g.getImageData(0,0,W,H).data,L=function(x,y){var i=(y*W+x)*4;return(d[i]+d[i+1]+d[i+2])/3},b=0,n=0;
-for(var x=0;x<W;x+=5){b+=L(x,0)+L(x,H-1);n+=2}b/=n;
-var hit=function(v,col){var k=0,t=0;for(var j=10;j<(col?H:W)-10;j+=4){var l=col?L(v,j):L(j,v);t++;if(Math.abs(l-b)>24&&l>110)k++}return k>t*.35};
-var x0=0,x1=W-1,y0=0,y1=H-1,i;for(i=5;i<W*.4;i++)if(hit(i,1)){x0=i;break}for(i=W-6;i>W*.6;i--)if(hit(i,1)){x1=i;break}
-for(i=5;i<H*.4;i++)if(hit(i,0)){y0=i;break}for(i=H-6;i>H*.6;i--)if(hit(i,0)){y1=i;break}
-var sx=im.naturalWidth/W,sy=im.naturalHeight/H,bw=(x1-x0)*sx,bh=(y1-y0)*sy;
-if(bw<im.naturalWidth*.4||bh<im.naturalHeight*.4)return{x:im.naturalWidth*.05,y:im.naturalHeight*.05,width:im.naturalWidth*.9,height:im.naturalHeight*.9};return{x:x0*sx,y:y0*sy,width:bw,height:bh}}
+
+// ================= 4-CORNER PERSPECTIVE CROP ENGINE =================
+var curImg = null;
+var corners = []; // [{x,y}, {x,y}, {x,y}, {x,y}] TopLeft, TopRight, BottomRight, BottomLeft
+var activeCorner = -1;
+var canvas = null;
+var ctx = null;
+
 function newCk(u){ei=-1;openC(u)}
 
-// Default Enhance Filter
 function openC(u){
-    var i=$("ci");
     setFilter('enhance');
     $("cm").style.display="flex";
-    if(cr){cr.destroy();cr=null;}
-    i.onload=function(){
-        cr=new Cropper(i,{viewMode:1,autoCropArea:.98,restore:false,highlight:false,toggleDragModeOnDblclick:false,ready:function(){cr.setData(box(i))}});
+    canvas = $("scCanvas");
+    ctx = canvas.getContext("2d");
+    
+    curImg = new Image();
+    curImg.onload = function(){
+        setupCanvasAndCorners();
     };
-    i.src=u;
-}
-function auto(){if(cr)cr.setData(box($("ci")))}
-function closeC(){
-    if(cr){cr.destroy();cr=null;}
-    var i=$("ci");
-    i.src="";
-    $("cm").style.display="none";
+    curImg.src = u;
 }
 
-// 2400px resolution + 0.90 quality for checklist (Sharp text, ~1.5MB size)
-function doneC(){
-    if(!cr)return;
-    var canvas = cr.getCroppedCanvas({
-        maxWidth: 2400,
-        maxHeight: 2400,
-        imageSmoothingEnabled: true,
-        imageSmoothingQuality: 'high'
-    });
-    var u = processCanvasFilter(canvas, selectedFilter);
-    var o = $("ci").src;
+function setupCanvasAndCorners(){
+    var box = $("canvasBox");
+    var maxW = box.clientWidth || 360;
+    var maxH = box.clientHeight || 500;
     
-    if(ei==-2){
-        tg(u);
+    var scale = Math.min(maxW / curImg.width, maxH / curImg.height, 1);
+    canvas.width = Math.round(curImg.width * scale);
+    canvas.height = Math.round(curImg.height * scale);
+    
+    resetCorners();
+    initCanvasEvents();
+}
+
+function resetCorners(){
+    var padW = canvas.width * 0.05;
+    var padH = canvas.height * 0.05;
+    corners = [
+        { x: padW, y: padH },                             // TL
+        { x: canvas.width - padW, y: padH },              // TR
+        { x: canvas.width - padW, y: canvas.height - padH }, // BR
+        { x: padW, y: canvas.height - padH }              // BL
+    ];
+    redrawCanvas();
+}
+
+function autoDetectCorners(){
+    // Edge detection approximation
+    var cvTemp = document.createElement("canvas");
+    var W = 200, H = Math.round(canvas.height * W / canvas.width);
+    cvTemp.width = W; cvTemp.height = H;
+    var g = cvTemp.getContext("2d");
+    g.drawImage(canvas, 0, 0, W, H);
+    var d = g.getImageData(0,0,W,H).data;
+    
+    var L = function(x,y){ var i=(y*W+x)*4; return (d[i]+d[i+1]+d[i+2])/3; };
+    var b = (L(0,0)+L(W-1,0)+L(0,H-1)+L(W-1,H-1))/4;
+    
+    var x0=W*0.06, x1=W*0.94, y0=H*0.06, y1=H*0.94;
+    for(var x=5; x<W*0.4; x++){ if(Math.abs(L(x, Math.round(H/2))-b)>25){ x0=x; break; } }
+    for(var x=W-6; x>W*0.6; x--){ if(Math.abs(L(x, Math.round(H/2))-b)>25){ x1=x; break; } }
+    for(var y=5; y<H*0.4; y++){ if(Math.abs(L(Math.round(W/2), y)-b)>25){ y0=y; break; } }
+    for(var y=H-6; y>H*0.6; y--){ if(Math.abs(L(Math.round(W/2), y)-b)>25){ y1=y; break; } }
+    
+    var sx = canvas.width / W, sy = canvas.height / H;
+    corners = [
+        { x: x0 * sx, y: y0 * sy },
+        { x: x1 * sx, y: y0 * sy },
+        { x: x1 * sx, y: y1 * sy },
+        { x: x0 * sx, y: y1 * sy }
+    ];
+    redrawCanvas();
+}
+
+function rotateImg(deg){
+    var c = document.createElement("canvas");
+    if(Math.abs(deg) === 90 || Math.abs(deg) === 270){
+        c.width = curImg.height; c.height = curImg.width;
     } else {
-        if(ei>=0) D.ck[ei]=u;
-        else { D.ck.push(u); D.ko.push(o); }
-        gal("gc",D.ck,1);
+        c.width = curImg.width; c.height = curImg.height;
+    }
+    var g = c.getContext("2d");
+    g.translate(c.width/2, c.height/2);
+    g.rotate(deg * Math.PI / 180);
+    g.drawImage(curImg, -curImg.width/2, -curImg.height/2);
+    
+    curImg = new Image();
+    curImg.onload = function(){ setupCanvasAndCorners(); };
+    curImg.src = c.toDataURL("image/jpeg", 0.95);
+}
+
+function redrawCanvas(){
+    if(!ctx || !curImg) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw original preview
+    ctx.drawImage(curImg, 0, 0, canvas.width, canvas.height);
+    
+    // Semi-transparent shade outside corners
+    ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Clear & highlight polygon
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(corners[0].x, corners[0].y);
+    ctx.lineTo(corners[1].x, corners[1].y);
+    ctx.lineTo(corners[2].x, corners[2].y);
+    ctx.lineTo(corners[3].x, corners[3].y);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(curImg, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    
+    // Draw lines between corners
+    ctx.beginPath();
+    ctx.moveTo(corners[0].x, corners[0].y);
+    ctx.lineTo(corners[1].x, corners[1].y);
+    ctx.lineTo(corners[2].x, corners[2].y);
+    ctx.lineTo(corners[3].x, corners[3].y);
+    ctx.closePath();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "#38bdf8";
+    ctx.stroke();
+    
+    // Draw corner handles (easy touch circles)
+    var colors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b"];
+    for(var i=0; i<4; i++){
+        ctx.beginPath();
+        ctx.arc(corners[i].x, corners[i].y, 14, 0, 2*Math.PI);
+        ctx.fillStyle = colors[i];
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+    }
+}
+
+function initCanvasEvents(){
+    var getPos = function(e){
+        var rect = canvas.getBoundingClientRect();
+        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+            x: (clientX - rect.left) * (canvas.width / rect.width),
+            y: (clientY - rect.top) * (canvas.height / rect.height)
+        };
+    };
+
+    var onDown = function(e){
+        var p = getPos(e);
+        activeCorner = -1;
+        var minDist = 40; // Touch radius for easy drag
+        for(var i=0; i<4; i++){
+            var d = Math.hypot(corners[i].x - p.x, corners[i].y - p.y);
+            if(d < minDist){
+                minDist = d;
+                activeCorner = i;
+            }
+        }
+        if(activeCorner !== -1 && e.preventDefault) e.preventDefault();
+    };
+
+    var onMove = function(e){
+        if(activeCorner === -1) return;
+        var p = getPos(e);
+        corners[activeCorner].x = Math.max(0, Math.min(canvas.width, p.x));
+        corners[activeCorner].y = Math.max(0, Math.min(canvas.height, p.y));
+        redrawCanvas();
+        if(e.preventDefault) e.preventDefault();
+    };
+
+    var onUp = function(){ activeCorner = -1; };
+
+    canvas.onmousedown = onDown;
+    window.onmousemove = onMove;
+    window.onmouseup = onUp;
+
+    canvas.ontouchstart = onDown;
+    canvas.ontouchmove = onMove;
+    canvas.ontouchend = onUp;
+}
+
+// 4-Point Perspective Transform (Warp Paper to Perfect Rectangle)
+function warpPerspective(origImg, pts, outW, outH){
+    var cv = document.createElement("canvas");
+    cv.width = outW;
+    cv.height = outH;
+    var g = cv.getContext("2d");
+
+    // Bilinear Sub-divided Mesh Warp for true 4-corner document straightening
+    var SUB = 16;
+    for (var i = 0; i < SUB; i++) {
+        for (var j = 0; j < SUB; j++) {
+            var u0 = i / SUB, u1 = (i + 1) / SUB;
+            var v0 = j / SUB, v1 = (j + 1) / SUB;
+
+            var lerp = function(p0, p1, t){ return { x: p0.x + (p1.x - p0.x)*t, y: p0.y + (p1.y - p0.y)*t }; };
+            var quadInterp = function(u, v){
+                var top = lerp(pts[0], pts[1], u);
+                var bot = lerp(pts[3], pts[2], u);
+                return lerp(top, bot, v);
+            };
+
+            var s00 = quadInterp(u0, v0);
+            var s10 = quadInterp(u1, v0);
+            var s01 = quadInterp(u0, v1);
+            var s11 = quadInterp(u1, v1);
+
+            var dX = u0 * outW;
+            var dY = v0 * outH;
+            var dW = (u1 - u0) * outW;
+            var dH = (v1 - v0) * outH;
+
+            g.save();
+            g.beginPath();
+            g.moveTo(dX, dY);
+            g.lineTo(dX + dW + 0.5, dY);
+            g.lineTo(dX + dW + 0.5, dY + dH + 0.5);
+            g.lineTo(dX, dY + dH + 0.5);
+            g.closePath();
+            g.clip();
+
+            var sx = Math.min(s00.x, s01.x);
+            var sy = Math.min(s00.y, s10.y);
+            var sw = Math.max(s10.x, s11.x) - sx;
+            var sh = Math.max(s01.y, s11.y) - sy;
+
+            g.drawImage(origImg, sx, sy, sw, sh, dX, dY, dW, dH);
+            g.restore();
+        }
+    }
+    return cv;
+}
+
+function doneC(){
+    if(!curImg) return;
+    
+    // Map canvas coordinates to full original image pixels
+    var scaleX = curImg.width / canvas.width;
+    var scaleY = curImg.height / canvas.height;
+    
+    var realPts = corners.map(function(c){
+        return { x: c.x * scaleX, y: c.y * scaleY };
+    });
+    
+    // Calculate cropped paper width & height
+    var topW = Math.hypot(realPts[1].x - realPts[0].x, realPts[1].y - realPts[0].y);
+    var botW = Math.hypot(realPts[2].x - realPts[3].x, realPts[2].y - realPts[3].y);
+    var leftH = Math.hypot(realPts[3].x - realPts[0].x, realPts[3].y - realPts[0].y);
+    var rightH = Math.hypot(realPts[2].x - realPts[1].x, realPts[2].y - realPts[1].y);
+    
+    var outW = Math.min(2400, Math.round(Math.max(topW, botW)));
+    var outH = Math.min(2400, Math.round(Math.max(leftH, rightH)));
+    
+    if(outW < 200 || outH < 200){
+        outW = 1600; outH = 2200;
+    }
+    
+    var warpedCanvas = warpPerspective(curImg, realPts, outW, outH);
+    var finalData = processCanvasFilter(warpedCanvas, selectedFilter);
+    var origUrl = curImg.src;
+
+    if(ei == -2){
+        tg(finalData);
+    } else {
+        if(ei >= 0) D.ck[ei] = finalData;
+        else { D.ck.push(finalData); D.ko.push(origUrl); }
+        gal("gc", D.ck, 1);
     }
     closeC();
 }
+
+function closeC(){
+    curImg = null;
+    canvas.onmousedown = null;
+    canvas.ontouchstart = null;
+    $("cm").style.display="none";
+}
+
 function hd(p,t,s){p.setFillColor(15,23,42);p.rect(0,0,210,s||24,"F");p.setTextColor(255,255,255);p.setFontSize(14);p.setFont(undefined,"bold");p.text(t,14,16)}
 function img(p,u,x,y,w,h,l,isChecklist){
     p.setFont(undefined,"bold");
