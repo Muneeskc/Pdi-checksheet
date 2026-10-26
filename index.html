@@ -3,9 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <title>Vehicle Inward &amp; Inspection Pro</title>
 
 <!-- PWA Settings -->
@@ -176,7 +173,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v9", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v10", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -441,7 +438,7 @@ function pick(cam,cb,multi,isCk){
     i.click();
 }
 
-// LOW-MEMORY CRASH PREVENTED: URL.createObjectURL vazhi 0 RAM use
+// ZERO-RAM OBJECT URL (NO MEMORY CRASH)
 async function rd(f,cb,isCk){
     if(isCk){
         let blobUrl = URL.createObjectURL(f);
@@ -484,6 +481,7 @@ function processCanvasFilter(cv, mode){
         var r = d[i], g = d[i+1], b = d[i+2];
 
         if(mode === 'enhance'){
+            // Magic Color: Paper clean soft white, text dark, pen marks preserved
             var lum = 0.299 * r + 0.587 * g + 0.114 * b;
             if(lum > 140) {
                 d[i]   = Math.min(255, r * 1.35);
@@ -498,6 +496,7 @@ function processCanvasFilter(cv, mode){
             var gray = 0.299 * r + 0.587 * g + 0.114 * b;
             d[i] = gray; d[i+1] = gray; d[i+2] = gray;
         } else if(mode === 'bw'){
+            // Original Pure White (Scan): Background pure 255 white, text solid black
             var gray2 = 0.299 * r + 0.587 * g + 0.114 * b;
             var val = gray2 > 135 ? 255 : 0;
             d[i] = val; d[i+1] = val; d[i+2] = val;
@@ -718,22 +717,14 @@ async function out(share){
 </script>
 
 <script>
-// AUTO-UPDATE SERVICE WORKER
+// CLEAN SINGLE-REGISTRATION (NO RELOAD LOOP)
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js?v=' + Date.now(), { updateViaCache: 'none' })
+    navigator.serviceWorker.register('./sw.js')
       .then(reg => {
         reg.update();
-        reg.onupdatefound = () => {
-          const installingWorker = reg.installing;
-          installingWorker.onstatechange = () => {
-            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              window.location.reload();
-            }
-          };
-        };
       })
-      .catch(err => console.error('PWA Service Worker failed', err));
+      .catch(err => console.error('PWA registration error', err));
   });
 }
 </script>
