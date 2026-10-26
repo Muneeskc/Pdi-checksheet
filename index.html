@@ -173,7 +173,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v10", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v11", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -355,46 +355,48 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 }
 
-// 1200px STRICT COMPRESSION (Photos 200KB-il nirkkum)
-function smartCompress(fileOrBase64) {
+// BULLETPROOF RAM-SAFE RESIZING (Photos 200KB-il nirkkum, crash aavilla)
+function downscaleImage(fileOrBlob, maxDimension, quality) {
     return new Promise((resolve) => {
-        let img = new Image();
-        let isBlob = typeof fileOrBase64 !== 'string';
-        let src = isBlob ? URL.createObjectURL(fileOrBase64) : fileOrBase64;
-        
+        const img = new Image();
+        const url = URL.createObjectURL(fileOrBlob);
         img.onload = () => {
             try {
-                let canvas = document.createElement('canvas');
-                let width = img.naturalWidth || img.width;
-                let height = img.naturalHeight || img.height;
-
-                const MAX_WIDTH = 1200;
-                if (width > MAX_WIDTH) {
-                    height = Math.round((height * MAX_WIDTH) / width);
-                    width = MAX_WIDTH;
+                let w = img.naturalWidth || img.width;
+                let h = img.naturalHeight || img.height;
+                if (w > maxDimension || h > maxDimension) {
+                    if (w > h) {
+                        h = Math.round((h * maxDimension) / w);
+                        w = maxDimension;
+                    } else {
+                        w = Math.round((w * maxDimension) / h);
+                        h = maxDimension;
+                    }
                 }
-
-                canvas.width = width;
-                canvas.height = height;
-                let ctx = canvas.getContext('2d', { alpha: false });
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d', { alpha: false });
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'medium';
-                ctx.drawImage(img, 0, 0, width, height);
-
-                let compressedData = canvas.toDataURL('image/jpeg', 0.65);
-                if (isBlob) URL.revokeObjectURL(src);
-                resolve(compressedData);
+                ctx.drawImage(img, 0, 0, w, h);
+                URL.revokeObjectURL(url);
+                resolve(canvas.toDataURL('image/jpeg', quality));
             } catch(e) {
-                if (isBlob) URL.revokeObjectURL(src);
-                resolve(src);
+                URL.revokeObjectURL(url);
+                resolve(url);
             }
         };
         img.onerror = () => {
-            if (isBlob) URL.revokeObjectURL(src);
-            resolve(src);
+            URL.revokeObjectURL(url);
+            resolve(url);
         };
-        img.src = src;
+        img.src = url;
     });
+}
+
+function smartCompress(file) {
+    return downscaleImage(file, 1200, 0.65);
 }
 
 // ================= APP ORIGINAL LOGIC =================
@@ -438,11 +440,11 @@ function pick(cam,cb,multi,isCk){
     i.click();
 }
 
-// ZERO-RAM OBJECT URL (NO MEMORY CRASH)
+// CHECKLIST MEMORY CRASH PREVENTED: Pre-scale to 1600px HD before opening Cropper
 async function rd(f,cb,isCk){
     if(isCk){
-        let blobUrl = URL.createObjectURL(f);
-        cb(blobUrl);
+        let scaledData = await downscaleImage(f, 1600, 0.90);
+        cb(scaledData);
     } else {
         let compactImage = await smartCompress(f);
         cb(compactImage);
@@ -481,7 +483,6 @@ function processCanvasFilter(cv, mode){
         var r = d[i], g = d[i+1], b = d[i+2];
 
         if(mode === 'enhance'){
-            // Magic Color: Paper clean soft white, text dark, pen marks preserved
             var lum = 0.299 * r + 0.587 * g + 0.114 * b;
             if(lum > 140) {
                 d[i]   = Math.min(255, r * 1.35);
@@ -496,7 +497,6 @@ function processCanvasFilter(cv, mode){
             var gray = 0.299 * r + 0.587 * g + 0.114 * b;
             d[i] = gray; d[i+1] = gray; d[i+2] = gray;
         } else if(mode === 'bw'){
-            // Original Pure White (Scan): Background pure 255 white, text solid black
             var gray2 = 0.299 * r + 0.587 * g + 0.114 * b;
             var val = gray2 > 135 ? 255 : 0;
             d[i] = val; d[i+1] = val; d[i+2] = val;
@@ -612,7 +612,6 @@ function auto(){
 function closeC(goBack){
     if(cr){cr.destroy();cr=null;}
     var i=$("ci");
-    if(i.src.startsWith("blob:")) URL.revokeObjectURL(i.src);
     i.src="";
     $("cm").style.display="none";
     if(goBack && history.state && history.state.modal === "scanner"){
@@ -620,12 +619,12 @@ function closeC(goBack){
     }
 }
 
-// 2000px MEMORY-SAFE RESOLUTION (SHARP TEXT + NO CRASH)
+// 1800px STRICT MEMORY LIMIT (CRISP TEXT, NO LOW-MEMORY CRASH)
 function doneC(){
     if(!cr)return;
     var canvas = cr.getCroppedCanvas({
-        maxWidth: 2000,
-        maxHeight: 2000,
+        maxWidth: 1800,
+        maxHeight: 1800,
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high'
     });
