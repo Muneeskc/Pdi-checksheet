@@ -438,17 +438,14 @@ function setFilter(mode){
     if(mode === 'enhance') $('f-magic').classList.add('active');
     if(mode === 'grayscale') $('f-gray').classList.add('active');
     if(mode === 'bw') $('f-bw').classList.add('active');
+    
+    // Update live preview with new filter
+    generateFilteredPreview();
     redrawCanvas();
 }
 
-// High Contrast Document Filter (Clean white paper + Dark sharp text)
-function processCanvasFilter(cv, mode){
-    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.90);
-    
-    var ctx = cv.getContext("2d");
-    var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
-    var d = imgData.data;
-
+// Live Filter Process Logic
+function applyFilterToPixelData(d, mode){
     for (var i = 0; i < d.length; i += 4) {
         var r = d[i], gr = d[i+1], b = d[i+2];
 
@@ -472,6 +469,13 @@ function processCanvasFilter(cv, mode){
             d[i] = val; d[i+1] = val; d[i+2] = val;
         }
     }
+}
+
+function processCanvasFilter(cv, mode){
+    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.90);
+    var ctx = cv.getContext("2d");
+    var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
+    applyFilterToPixelData(imgData.data, mode);
     ctx.putImageData(imgData, 0, 0);
     return cv.toDataURL("image/jpeg", 0.90);
 }
@@ -523,9 +527,10 @@ try{if("BarcodeDetector" in window){var r=await new BarcodeDetector({formats:["c
 if(!out&&window.ZXing){try{var x=await new ZXing.BrowserMultiFormatReader().decodeFromCanvas(c);if(x)out=x.getText()}catch(e){}}}
 return out.replace(/[^A-Z0-9]/gi,"").toUpperCase()}
 
-// ================= 4-CORNER PERSPECTIVE CROP ENGINE =================
+// ================= 4-CORNER PERSPECTIVE CROP & LIVE FILTER ENGINE =================
 var curImg = null;
-var corners = []; // [{x,y}, {x,y}, {x,y}, {x,y}] TopLeft, TopRight, BottomRight, BottomLeft
+var filteredCanvas = null; // Canvas storing filtered preview
+var corners = [];
 var activeCorner = -1;
 var canvas = null;
 var ctx = null;
@@ -554,8 +559,27 @@ function setupCanvasAndCorners(){
     canvas.width = Math.round(curImg.width * scale);
     canvas.height = Math.round(curImg.height * scale);
     
+    generateFilteredPreview();
     resetCorners();
     initCanvasEvents();
+}
+
+// Pre-render filter to separate canvas for instant live preview inside crop area
+function generateFilteredPreview(){
+    if(!canvas || !curImg) return;
+    if(!filteredCanvas){
+        filteredCanvas = document.createElement("canvas");
+    }
+    filteredCanvas.width = canvas.width;
+    filteredCanvas.height = canvas.height;
+    var fctx = filteredCanvas.getContext("2d");
+    fctx.drawImage(curImg, 0, 0, canvas.width, canvas.height);
+    
+    if(selectedFilter !== 'original'){
+        var imgData = fctx.getImageData(0, 0, filteredCanvas.width, filteredCanvas.height);
+        applyFilterToPixelData(imgData.data, selectedFilter);
+        fctx.putImageData(imgData, 0, 0);
+    }
 }
 
 function resetCorners(){
@@ -570,30 +594,64 @@ function resetCorners(){
     redrawCanvas();
 }
 
+// ROBUST SOBEL EDGE AUTO-DETECTION FOR 4 CORNERS
 function autoDetectCorners(){
-    // Edge detection approximation
+    var W = 160, H = Math.round(canvas.height * W / canvas.width);
     var cvTemp = document.createElement("canvas");
-    var W = 200, H = Math.round(canvas.height * W / canvas.width);
     cvTemp.width = W; cvTemp.height = H;
     var g = cvTemp.getContext("2d");
-    g.drawImage(canvas, 0, 0, W, H);
-    var d = g.getImageData(0,0,W,H).data;
+    g.drawImage(curImg, 0, 0, W, H);
+    var d = g.getImageData(0, 0, W, H).data;
     
-    var L = function(x,y){ var i=(y*W+x)*4; return (d[i]+d[i+1]+d[i+2])/3; };
-    var b = (L(0,0)+L(W-1,0)+L(0,H-1)+L(W-1,H-1))/4;
+    var gray = new Float32Array(W * H);
+    for(var i=0; i<gray.length; i++){
+        var idx = i * 4;
+        gray[i] = 0.299*d[idx] + 0.587*d[idx+1] + 0.114*d[idx+2];
+    }
     
-    var x0=W*0.06, x1=W*0.94, y0=H*0.06, y1=H*0.94;
-    for(var x=5; x<W*0.4; x++){ if(Math.abs(L(x, Math.round(H/2))-b)>25){ x0=x; break; } }
-    for(var x=W-6; x>W*0.6; x--){ if(Math.abs(L(x, Math.round(H/2))-b)>25){ x1=x; break; } }
-    for(var y=5; y<H*0.4; y++){ if(Math.abs(L(Math.round(W/2), y)-b)>25){ y0=y; break; } }
-    for(var y=H-6; y>H*0.6; y--){ if(Math.abs(L(Math.round(W/2), y)-b)>25){ y1=y; break; } }
+    // Sobel gradient detection
+    var grad = new Float32Array(W * H);
+    for(var y=1; y<H-1; y++){
+        for(var x=1; x<W-1; x++){
+            var gx = (-1 * gray[(y-1)*W + (x-1)]) + (1 * gray[(y-1)*W + (x+1)]) +
+                     (-2 * gray[y*W + (x-1)])     + (2 * gray[y*W + (x+1)]) +
+                     (-1 * gray[(y+1)*W + (x-1)]) + (1 * gray[(y+1)*W + (x+1)]);
+            var gy = (-1 * gray[(y-1)*W + (x-1)]) + (-2 * gray[(y-1)*W + x]) + (-1 * gray[(y-1)*W + (x+1)]) +
+                     (1 * gray[(y+1)*W + (x-1)])  + (2 * gray[(y+1)*W + x])  + (1 * gray[(y+1)*W + (x+1)]);
+            grad[y*W + x] = Math.hypot(gx, gy);
+        }
+    }
+    
+    // Find highest contrast bounding box
+    var minX = W * 0.05, maxX = W * 0.95, minY = H * 0.05, maxY = H * 0.95;
+    
+    // Scan from Left
+    for(var x=Math.round(W*0.04); x<W*0.45; x++){
+        var sum = 0; for(var y=Math.round(H*0.2); y<H*0.8; y++) sum += grad[y*W + x];
+        if(sum / (H*0.6) > 28){ minX = x; break; }
+    }
+    // Scan from Right
+    for(var x=Math.round(W*0.96); x>W*0.55; x--){
+        var sum = 0; for(var y=Math.round(H*0.2); y<H*0.8; y++) sum += grad[y*W + x];
+        if(sum / (H*0.6) > 28){ maxX = x; break; }
+    }
+    // Scan from Top
+    for(var y=Math.round(H*0.04); y<H*0.45; y++){
+        var sum = 0; for(var x=Math.round(W*0.2); x<W*0.8; x++) sum += grad[y*W + x];
+        if(sum / (W*0.6) > 28){ minY = y; break; }
+    }
+    // Scan from Bottom
+    for(var y=Math.round(H*0.96); y>H*0.55; y--){
+        var sum = 0; for(var x=Math.round(W*0.2); x<W*0.8; x++) sum += grad[y*W + x];
+        if(sum / (W*0.6) > 28){ maxY = y; break; }
+    }
     
     var sx = canvas.width / W, sy = canvas.height / H;
     corners = [
-        { x: x0 * sx, y: y0 * sy },
-        { x: x1 * sx, y: y0 * sy },
-        { x: x1 * sx, y: y1 * sy },
-        { x: x0 * sx, y: y1 * sy }
+        { x: minX * sx, y: minY * sy },
+        { x: maxX * sx, y: minY * sy },
+        { x: maxX * sx, y: maxY * sy },
+        { x: minX * sx, y: maxY * sy }
     ];
     redrawCanvas();
 }
@@ -619,14 +677,12 @@ function redrawCanvas(){
     if(!ctx || !curImg) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw original preview
+    // Draw original image dimmed outside the polygon
     ctx.drawImage(curImg, 0, 0, canvas.width, canvas.height);
-    
-    // Semi-transparent shade outside corners
-    ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+    ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
-    // Clear & highlight polygon
+    // Draw live filtered preview clipped inside polygon
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(corners[0].x, corners[0].y);
@@ -635,10 +691,14 @@ function redrawCanvas(){
     ctx.lineTo(corners[3].x, corners[3].y);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(curImg, 0, 0, canvas.width, canvas.height);
+    if(filteredCanvas){
+        ctx.drawImage(filteredCanvas, 0, 0, canvas.width, canvas.height);
+    } else {
+        ctx.drawImage(curImg, 0, 0, canvas.width, canvas.height);
+    }
     ctx.restore();
     
-    // Draw lines between corners
+    // Draw blue boundary line
     ctx.beginPath();
     ctx.moveTo(corners[0].x, corners[0].y);
     ctx.lineTo(corners[1].x, corners[1].y);
@@ -649,7 +709,7 @@ function redrawCanvas(){
     ctx.strokeStyle = "#38bdf8";
     ctx.stroke();
     
-    // Draw corner handles (easy touch circles)
+    // Draw corner handles
     var colors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b"];
     for(var i=0; i<4; i++){
         ctx.beginPath();
@@ -676,7 +736,7 @@ function initCanvasEvents(){
     var onDown = function(e){
         var p = getPos(e);
         activeCorner = -1;
-        var minDist = 40; // Touch radius for easy drag
+        var minDist = 45;
         for(var i=0; i<4; i++){
             var d = Math.hypot(corners[i].x - p.x, corners[i].y - p.y);
             if(d < minDist){
@@ -714,7 +774,6 @@ function warpPerspective(origImg, pts, outW, outH){
     cv.height = outH;
     var g = cv.getContext("2d");
 
-    // Bilinear Sub-divided Mesh Warp for true 4-corner document straightening
     var SUB = 16;
     for (var i = 0; i < SUB; i++) {
         for (var j = 0; j < SUB; j++) {
@@ -762,7 +821,6 @@ function warpPerspective(origImg, pts, outW, outH){
 function doneC(){
     if(!curImg) return;
     
-    // Map canvas coordinates to full original image pixels
     var scaleX = curImg.width / canvas.width;
     var scaleY = curImg.height / canvas.height;
     
@@ -770,7 +828,6 @@ function doneC(){
         return { x: c.x * scaleX, y: c.y * scaleY };
     });
     
-    // Calculate cropped paper width & height
     var topW = Math.hypot(realPts[1].x - realPts[0].x, realPts[1].y - realPts[0].y);
     var botW = Math.hypot(realPts[2].x - realPts[3].x, realPts[2].y - realPts[3].y);
     var leftH = Math.hypot(realPts[3].x - realPts[0].x, realPts[3].y - realPts[0].y);
@@ -799,6 +856,7 @@ function doneC(){
 
 function closeC(){
     curImg = null;
+    filteredCanvas = null;
     canvas.onmousedown = null;
     canvas.ontouchstart = null;
     $("cm").style.display="none";
