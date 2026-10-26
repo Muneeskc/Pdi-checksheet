@@ -173,7 +173,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v12", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v13", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -355,8 +355,8 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 }
 
-// BULLETPROOF RAM-SAFE RESIZING (Photos 200KB-il nirkkum, crash aavilla)
-function downscaleImage(fileOrBlob, maxDimension, quality) {
+// STANDARD VEHICLE PHOTO COMPRESSOR (Strict 1200px / 200KB)
+function smartCompress(fileOrBlob) {
     return new Promise((resolve) => {
         const img = new Image();
         const url = URL.createObjectURL(fileOrBlob);
@@ -364,24 +364,24 @@ function downscaleImage(fileOrBlob, maxDimension, quality) {
             try {
                 let w = img.naturalWidth || img.width;
                 let h = img.naturalHeight || img.height;
-                if (w > maxDimension || h > maxDimension) {
+                const MAX = 1200;
+                if (w > MAX || h > MAX) {
                     if (w > h) {
-                        h = Math.round((h * maxDimension) / w);
-                        w = maxDimension;
+                        h = Math.round((h * MAX) / w);
+                        w = MAX;
                     } else {
-                        w = Math.round((w * maxDimension) / h);
-                        h = maxDimension;
+                        w = Math.round((w * MAX) / h);
+                        h = MAX;
                     }
                 }
-                const canvas = document.createElement('canvas');
-                canvas.width = w;
-                canvas.height = h;
-                const ctx = canvas.getContext('2d', { alpha: false });
+                const cv = document.createElement('canvas');
+                cv.width = w; cv.height = h;
+                const ctx = cv.getContext('2d', { alpha: false });
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'medium';
                 ctx.drawImage(img, 0, 0, w, h);
                 URL.revokeObjectURL(url);
-                resolve(canvas.toDataURL('image/jpeg', quality));
+                resolve(cv.toDataURL('image/jpeg', 0.65));
             } catch(e) {
                 URL.revokeObjectURL(url);
                 resolve(url);
@@ -393,10 +393,6 @@ function downscaleImage(fileOrBlob, maxDimension, quality) {
         };
         img.src = url;
     });
-}
-
-function smartCompress(file) {
-    return downscaleImage(file, 1200, 0.65);
 }
 
 // ================= APP ORIGINAL LOGIC =================
@@ -440,11 +436,11 @@ function pick(cam,cb,multi,isCk){
     i.click();
 }
 
-// CHECKLIST MEMORY CRASH PREVENTED: Pre-scale to 1600px HD before opening Cropper
+// CHECKLIST DIRECT READ (NO PRE-SCALING BLUR)
 async function rd(f,cb,isCk){
     if(isCk){
-        let scaledData = await downscaleImage(f, 1600, 0.90);
-        cb(scaledData);
+        let blobUrl = URL.createObjectURL(f);
+        cb(blobUrl);
     } else {
         let compactImage = await smartCompress(f);
         cb(compactImage);
@@ -471,9 +467,9 @@ function setFilter(mode){
     modal.className = 'flt-' + mode;
 }
 
-// ORIGINAL SCANNER PIXEL ENGINE (PURE WHITE SCAN + NATURAL MAGIC COLOR)
+// ORIGINAL SCANNER PIXEL ENGINE (CRISP TEXT RETENTION)
 function processCanvasFilter(cv, mode){
-    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.90);
+    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.92);
     
     var ctx = cv.getContext("2d");
     var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
@@ -483,7 +479,6 @@ function processCanvasFilter(cv, mode){
         var r = d[i], g = d[i+1], b = d[i+2];
 
         if(mode === 'enhance'){
-            // Magic Color: Paper clean soft white, text dark, pen marks preserved
             var lum = 0.299 * r + 0.587 * g + 0.114 * b;
             if(lum > 140) {
                 d[i]   = Math.min(255, r * 1.35);
@@ -498,14 +493,13 @@ function processCanvasFilter(cv, mode){
             var gray = 0.299 * r + 0.587 * g + 0.114 * b;
             d[i] = gray; d[i+1] = gray; d[i+2] = gray;
         } else if(mode === 'bw'){
-            // Original Pure White (Scan): Background pure 255 white, text solid black
             var gray2 = 0.299 * r + 0.587 * g + 0.114 * b;
             var val = gray2 > 135 ? 255 : 0;
             d[i] = val; d[i+1] = val; d[i+2] = val;
         }
     }
     ctx.putImageData(imgData, 0, 0);
-    return cv.toDataURL("image/jpeg", 0.90);
+    return cv.toDataURL("image/jpeg", 0.92);
 }
 
 var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]],DOC=[["f22","Form 22"],["pen","Chassis Print"]];
@@ -660,6 +654,7 @@ function auto(){
 function closeC(goBack){
     if(cr){cr.destroy();cr=null;}
     var i=$("ci");
+    if(i.src.startsWith("blob:")) URL.revokeObjectURL(i.src);
     i.src="";
     $("cm").style.display="none";
     if(goBack && history.state && history.state.modal === "scanner"){
@@ -667,12 +662,12 @@ function closeC(goBack){
     }
 }
 
-// 1800px STRICT MEMORY LIMIT (CRISP TEXT, NO LOW-MEMORY CRASH)
+// 2400px HIGH CLARITY (CRISP PRINT SCANNER QUALITY)
 function doneC(){
     if(!cr)return;
     var canvas = cr.getCroppedCanvas({
-        maxWidth: 1800,
-        maxHeight: 1800,
+        maxWidth: 2400,
+        maxHeight: 2400,
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high'
     });
