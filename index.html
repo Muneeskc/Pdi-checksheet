@@ -57,8 +57,8 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 /* Scanner Overlay */
 #cm{display:none;position:fixed;inset:0;background:#000;z-index:99;flex-direction:column}
 .ch{padding:10px 14px;background:#1e293b;color:#fff;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;padding-top:calc(10px + env(safe-area-inset-top,0px))}
-.cb{flex:1;min-height:0;padding:8px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;touch-action:none;}
-#scCanvas{display:block;max-width:100%;max-height:100%;object-fit:contain;cursor:crosshair;}
+.cb{flex:1;min-height:0;padding:0;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;touch-action:none;}
+#scCanvas{display:block;cursor:crosshair;touch-action:none;}
 .cf{padding:10px;background:#1e293b;display:flex;gap:8px;flex-direction:column;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .cf button{background:#334155;font-size:12px;padding:8px 10px}
 .cf .filter-btn{border:1px solid var(--bd);background:var(--in);color:var(--tx)}
@@ -87,7 +87,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📸 Additional Inspection Photos</span><i>Optional (Multi-select)</i></div>
 <div class="box" style="text-align:center"><div class="row"><button onclick="pick(1,addP)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP,1)">🖼️ From Gallery</button></div><div class="gal" id="ga"></div></div>
 
-<div class="sec"><span>📑 Checklist (4-Corner Perspective Scanner)</span><i>Auto-Detect &amp; Corner Drag</i></div>
+<div class="sec"><span>📑 Checklist (4-Corner Perspective Scanner)</span><i>Zoom &amp; Corner Drag</i></div>
 <div class="box" style="text-align:center">
     <div class="row"><button onclick="pick(1,newCk,0,true)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk,0,true)">🖼️ From Gallery</button></div>
     <div class="gal" id="gc"></div>
@@ -113,7 +113,10 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
 <!-- 4-CORNER PERSPECTIVE CROP MODAL -->
 <div id="cm">
-    <div class="ch"><span>Checklist Corner Adjustment</span><button style="background:#ef4444" onclick="closeC()">✕ Cancel</button></div>
+    <div class="ch">
+        <span>Checklist Scanner (Pinch to Zoom)</span>
+        <button style="background:#ef4444" onclick="closeC()">✕ Cancel</button>
+    </div>
     <div class="cb" id="canvasBox">
         <canvas id="scCanvas"></canvas>
     </div>
@@ -131,6 +134,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
                 <button onclick="rotateImg(90)">↻ Right</button>
                 <button style="background:#0284c7" onclick="autoDetectCorners()">⚡ Detect</button>
                 <button onclick="resetCorners()">Full</button>
+                <button onclick="resetZoom()">🔍 100%</button>
             </div>
             <button style="background:#10b981;font-size:13px;padding:9px 18px" onclick="doneC()">✓ Done Crop</button>
         </div>
@@ -329,7 +333,7 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 }
 
-// BULLETPROOF SMART COMPRESS: 1200px + 0.65 JPEG (Photos 200KB-il nirkkum)
+// 1200px + 0.65 JPEG Strict Compression
 function smartCompress(fileOrBase64) {
     return new Promise((resolve) => {
         let img = new Image();
@@ -439,7 +443,6 @@ function setFilter(mode){
     if(mode === 'grayscale') $('f-gray').classList.add('active');
     if(mode === 'bw') $('f-bw').classList.add('active');
     
-    // Direct CSS filter preview update
     updateCanvasFilterPreview();
     redrawCanvas();
 }
@@ -447,9 +450,9 @@ function setFilter(mode){
 function updateCanvasFilterPreview(){
     if(!canvas) return;
     if(selectedFilter === 'enhance'){
-        canvas.style.filter = "contrast(1.5) brightness(1.2) saturate(1.1)";
+        canvas.style.filter = "contrast(1.4) brightness(1.2) saturate(1.15)";
     } else if(selectedFilter === 'grayscale'){
-        canvas.style.filter = "grayscale(100%) contrast(1.3)";
+        canvas.style.filter = "grayscale(100%) contrast(1.25)";
     } else if(selectedFilter === 'bw'){
         canvas.style.filter = "grayscale(100%) contrast(3) brightness(1.2)";
     } else {
@@ -457,7 +460,7 @@ function updateCanvasFilterPreview(){
     }
 }
 
-// Canvas-il high quality document filter apply cheyyunnu
+// Canvas HD processing
 function processCanvasFilter(cv, mode){
     if(mode === 'original') return cv.toDataURL("image/jpeg", 0.90);
     var ctx = cv.getContext("2d");
@@ -538,12 +541,21 @@ try{if("BarcodeDetector" in window){var r=await new BarcodeDetector({formats:["c
 if(!out&&window.ZXing){try{var x=await new ZXing.BrowserMultiFormatReader().decodeFromCanvas(c);if(x)out=x.getText()}catch(e){}}}
 return out.replace(/[^A-Z0-9]/gi,"").toUpperCase()}
 
-// ================= 4-CORNER PERSPECTIVE CROP & LIVE FILTER ENGINE =================
+// ================= ZOOM + PAN + 4-CORNER PERSPECTIVE ENGINE =================
 var curImg = null;
 var corners = [];
 var activeCorner = -1;
 var canvas = null;
 var ctx = null;
+
+// Zoom & Pan Variables
+var zoomScale = 1;
+var panX = 0, panY = 0;
+var baseWidth = 0, baseHeight = 0;
+var isPanning = false;
+var startPanX = 0, startPanY = 0;
+var initialPinchDist = 0;
+var initialZoom = 1;
 
 function newCk(u){ei=-1;openC(u)}
 
@@ -566,27 +578,42 @@ function setupCanvasAndCorners(){
     var maxH = box.clientHeight || 500;
     
     var scale = Math.min(maxW / curImg.width, maxH / curImg.height, 1);
-    canvas.width = Math.round(curImg.width * scale);
-    canvas.height = Math.round(curImg.height * scale);
+    baseWidth = Math.round(curImg.width * scale);
+    baseHeight = Math.round(curImg.height * scale);
     
-    resetCorners(); // 100% ഫുൾ പേജ് ഡിഫോൾട്ടായി സെറ്റ് ചെയ്യുന്നു
+    canvas.width = baseWidth;
+    canvas.height = baseHeight;
+    
+    resetZoom();
+    resetCorners();
     initCanvasEvents();
 }
 
-// 100% ഫുൾ പേജ് (യാതൊരു ഭാഗവും കട്ടാവാതെ നാല് കോണുകളിലേക്കും കൃത്യമായി നിൽക്കുന്നു)
+function resetZoom(){
+    zoomScale = 1;
+    panX = 0;
+    panY = 0;
+    applyTransform();
+    redrawCanvas();
+}
+
+function applyTransform(){
+    if(!canvas) return;
+    canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomScale})`;
+}
+
 function resetCorners(){
     corners = [
-        { x: 0, y: 0 },                                  // Top Left (തീർത്തും അരികിൽ)
-        { x: canvas.width, y: 0 },                      // Top Right
-        { x: canvas.width, y: canvas.height },          // Bottom Right
-        { x: 0, y: canvas.height }                      // Bottom Left
+        { x: 0, y: 0 },
+        { x: baseWidth, y: 0 },
+        { x: baseWidth, y: baseHeight },
+        { x: 0, y: baseHeight }
     ];
     redrawCanvas();
 }
 
-// "⚡ Detect" ക്ലിക്ക് ചെയ്യുമ്പോൾ മാത്രം പേപ്പർ ബോർഡറുകൾ ഡിറ്റക്റ്റ് ചെയ്യുന്നു
 function autoDetectCorners(){
-    var W = 160, H = Math.round(canvas.height * W / canvas.width);
+    var W = 160, H = Math.round(baseHeight * W / baseWidth);
     var cvTemp = document.createElement("canvas");
     cvTemp.width = W; cvTemp.height = H;
     var g = cvTemp.getContext("2d");
@@ -599,7 +626,6 @@ function autoDetectCorners(){
         gray[i] = 0.299*d[idx] + 0.587*d[idx+1] + 0.114*d[idx+2];
     }
     
-    // Sobel gradient border edge detection
     var grad = new Float32Array(W * H);
     for(var y=1; y<H-1; y++){
         for(var x=1; x<W-1; x++){
@@ -613,7 +639,6 @@ function autoDetectCorners(){
     }
     
     var minX = 0, maxX = W, minY = 0, maxY = H;
-    
     for(var x=4; x<W*0.45; x++){
         var sum = 0; for(var y=Math.round(H*0.2); y<H*0.8; y++) sum += grad[y*W + x];
         if(sum / (H*0.6) > 28){ minX = x; break; }
@@ -631,7 +656,7 @@ function autoDetectCorners(){
         if(sum / (W*0.6) > 28){ maxY = y; break; }
     }
     
-    var sx = canvas.width / W, sy = canvas.height / H;
+    var sx = baseWidth / W, sy = baseHeight / H;
     corners = [
         { x: minX * sx, y: minY * sy },
         { x: maxX * sx, y: minY * sy },
@@ -660,16 +685,16 @@ function rotateImg(deg){
 
 function redrawCanvas(){
     if(!ctx || !curImg) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, baseWidth, baseHeight);
     
     // Draw original image
-    ctx.drawImage(curImg, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(curImg, 0, 0, baseWidth, baseHeight);
     
     // Dim outside crop polygon
     ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, baseWidth, baseHeight);
     
-    // Clear crop polygon to bright original
+    // Clear crop polygon to original
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(corners[0].x, corners[0].y);
@@ -678,76 +703,162 @@ function redrawCanvas(){
     ctx.lineTo(corners[3].x, corners[3].y);
     ctx.closePath();
     ctx.clip();
-    ctx.drawImage(curImg, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(curImg, 0, 0, baseWidth, baseHeight);
     ctx.restore();
     
-    // Draw cyan boundary line
+    // Boundary line
     ctx.beginPath();
     ctx.moveTo(corners[0].x, corners[0].y);
     ctx.lineTo(corners[1].x, corners[1].y);
     ctx.lineTo(corners[2].x, corners[2].y);
     ctx.lineTo(corners[3].x, corners[3].y);
     ctx.closePath();
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.5 / zoomScale;
     ctx.strokeStyle = "#38bdf8";
     ctx.stroke();
     
-    // Draw 4 corner handles
+    // Corner handles (Scale inverse to zoom so size stays constant to human eye)
     var colors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b"];
+    var radius = 14 / zoomScale;
     for(var i=0; i<4; i++){
         ctx.beginPath();
-        ctx.arc(corners[i].x, corners[i].y, 14, 0, 2*Math.PI);
+        ctx.arc(corners[i].x, corners[i].y, radius, 0, 2*Math.PI);
         ctx.fillStyle = colors[i];
         ctx.fill();
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3 / zoomScale;
         ctx.strokeStyle = "#ffffff";
         ctx.stroke();
     }
 }
 
+// TOUCH + PINCH ZOOM + PAN + DRAG ENGINE
 function initCanvasEvents(){
-    var getPos = function(e){
+    var getCanvasCoords = function(clientX, clientY){
         var rect = canvas.getBoundingClientRect();
-        var clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        var clientY = e.touches ? e.touches[0].clientY : e.clientY;
         return {
-            x: (clientX - rect.left) * (canvas.width / rect.width),
-            y: (clientY - rect.top) * (canvas.height / rect.height)
+            x: (clientX - rect.left) * (baseWidth / rect.width),
+            y: (clientY - rect.top) * (baseHeight / rect.height)
         };
     };
 
-    var onDown = function(e){
-        var p = getPos(e);
-        activeCorner = -1;
-        var minDist = 45;
-        for(var i=0; i<4; i++){
-            var d = Math.hypot(corners[i].x - p.x, corners[i].y - p.y);
-            if(d < minDist){
-                minDist = d;
-                activeCorner = i;
+    var onTouchStart = function(e){
+        if(e.touches.length === 2){
+            // Pinch to Zoom start
+            isPanning = false;
+            activeCorner = -1;
+            initialPinchDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            initialZoom = zoomScale;
+            return;
+        }
+
+        if(e.touches.length === 1){
+            var touch = e.touches[0];
+            var p = getCanvasCoords(touch.clientX, touch.clientY);
+            activeCorner = -1;
+            var minDist = 40 / zoomScale;
+            for(var i=0; i<4; i++){
+                var d = Math.hypot(corners[i].x - p.x, corners[i].y - p.y);
+                if(d < minDist){
+                    minDist = d;
+                    activeCorner = i;
+                }
+            }
+
+            if(activeCorner === -1){
+                // Drag pan canvas if not touching corner handle
+                isPanning = true;
+                startPanX = touch.clientX - panX;
+                startPanY = touch.clientY - panY;
             }
         }
-        if(activeCorner !== -1 && e.preventDefault) e.preventDefault();
     };
 
-    var onMove = function(e){
-        if(activeCorner === -1) return;
-        var p = getPos(e);
-        corners[activeCorner].x = Math.max(0, Math.min(canvas.width, p.x));
-        corners[activeCorner].y = Math.max(0, Math.min(canvas.height, p.y));
+    var onTouchMove = function(e){
+        if(e.touches.length === 2){
+            // Pinch zooming
+            var dist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            zoomScale = Math.min(Math.max(1, initialZoom * (dist / initialPinchDist)), 4);
+            applyTransform();
+            redrawCanvas();
+            e.preventDefault();
+            return;
+        }
+
+        if(e.touches.length === 1){
+            var touch = e.touches[0];
+            if(activeCorner !== -1){
+                var p = getCanvasCoords(touch.clientX, touch.clientY);
+                corners[activeCorner].x = Math.max(0, Math.min(baseWidth, p.x));
+                corners[activeCorner].y = Math.max(0, Math.min(baseHeight, p.y));
+                redrawCanvas();
+                e.preventDefault();
+            } else if(isPanning && zoomScale > 1){
+                panX = touch.clientX - startPanX;
+                panY = touch.clientY - startPanY;
+                applyTransform();
+                e.preventDefault();
+            }
+        }
+    };
+
+    var onTouchEnd = function(){
+        activeCorner = -1;
+        isPanning = false;
+    };
+
+    // Wheel Zoom for desktop
+    var onWheel = function(e){
+        e.preventDefault();
+        var delta = e.deltaY < 0 ? 1.15 : 0.85;
+        zoomScale = Math.min(Math.max(1, zoomScale * delta), 4);
+        applyTransform();
         redrawCanvas();
-        if(e.preventDefault) e.preventDefault();
     };
 
-    var onUp = function(){ activeCorner = -1; };
+    canvas.ontouchstart = onTouchStart;
+    canvas.ontouchmove = onTouchMove;
+    canvas.ontouchend = onTouchEnd;
+    canvas.onwheel = onWheel;
 
-    canvas.onmousedown = onDown;
-    window.onmousemove = onMove;
-    window.onmouseup = onUp;
+    // Mouse Controls (Desktop)
+    canvas.onmousedown = function(e){
+        var p = getCanvasCoords(e.clientX, e.clientY);
+        activeCorner = -1;
+        var minDist = 40 / zoomScale;
+        for(var i=0; i<4; i++){
+            var d = Math.hypot(corners[i].x - p.x, corners[i].y - p.y);
+            if(d < minDist){ minDist = d; activeCorner = i; }
+        }
+        if(activeCorner === -1 && zoomScale > 1){
+            isPanning = true;
+            startPanX = e.clientX - panX;
+            startPanY = e.clientY - panY;
+        }
+    };
 
-    canvas.ontouchstart = onDown;
-    canvas.ontouchmove = onMove;
-    canvas.ontouchend = onUp;
+    window.onmousemove = function(e){
+        if(activeCorner !== -1){
+            var p = getCanvasCoords(e.clientX, e.clientY);
+            corners[activeCorner].x = Math.max(0, Math.min(baseWidth, p.x));
+            corners[activeCorner].y = Math.max(0, Math.min(baseHeight, p.y));
+            redrawCanvas();
+        } else if(isPanning){
+            panX = e.clientX - startPanX;
+            panY = e.clientY - startPanY;
+            applyTransform();
+        }
+    };
+
+    window.onmouseup = function(){
+        activeCorner = -1;
+        isPanning = false;
+    };
 }
 
 // 4-Point Perspective Transform (Warp Paper to Perfect Rectangle)
@@ -804,8 +915,8 @@ function warpPerspective(origImg, pts, outW, outH){
 function doneC(){
     if(!curImg) return;
     
-    var scaleX = curImg.width / canvas.width;
-    var scaleY = curImg.height / canvas.height;
+    var scaleX = curImg.width / baseWidth;
+    var scaleY = curImg.height / baseHeight;
     
     var realPts = corners.map(function(c){
         return { x: c.x * scaleX, y: c.y * scaleY };
@@ -839,9 +950,10 @@ function doneC(){
 
 function closeC(){
     curImg = null;
-    if(canvas) canvas.style.filter = "none";
-    canvas.onmousedown = null;
-    canvas.ontouchstart = null;
+    if(canvas){
+        canvas.style.filter = "none";
+        canvas.style.transform = "none";
+    }
     $("cm").style.display="none";
 }
 
