@@ -173,7 +173,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v11", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v12", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -483,6 +483,7 @@ function processCanvasFilter(cv, mode){
         var r = d[i], g = d[i+1], b = d[i+2];
 
         if(mode === 'enhance'){
+            // Magic Color: Paper clean soft white, text dark, pen marks preserved
             var lum = 0.299 * r + 0.587 * g + 0.114 * b;
             if(lum > 140) {
                 d[i]   = Math.min(255, r * 1.35);
@@ -497,6 +498,7 @@ function processCanvasFilter(cv, mode){
             var gray = 0.299 * r + 0.587 * g + 0.114 * b;
             d[i] = gray; d[i+1] = gray; d[i+2] = gray;
         } else if(mode === 'bw'){
+            // Original Pure White (Scan): Background pure 255 white, text solid black
             var gray2 = 0.299 * r + 0.587 * g + 0.114 * b;
             var val = gray2 > 135 ? 255 : 0;
             d[i] = val; d[i+1] = val; d[i+2] = val;
@@ -553,24 +555,70 @@ try{if("BarcodeDetector" in window){var r=await new BarcodeDetector({formats:["c
 if(!out&&window.ZXing){try{var x=await new ZXing.BrowserMultiFormatReader().decodeFromCanvas(c);if(x)out=x.getText()}catch(e){}}}
 return out.replace(/[^A-Z0-9]/gi,"").toUpperCase()}
 
+// WHITE DOCUMENT EDGE SCAN DETECTION
 function box(im){
-    var cv=document.createElement("canvas"),W=200,H=Math.round(im.naturalHeight*W/im.naturalWidth);
-    cv.width=W;cv.height=H;
-    var g=cv.getContext("2d");
-    g.drawImage(im,0,0,W,H);
-    var d=g.getImageData(0,0,W,H).data;
-    var L=function(x,y){var i=(y*W+x)*4;return(d[i]+d[i+1]+d[i+2])/3};
-    var b=0,n=0;
-    for(var x=0;x<W;x+=5){b+=L(x,0)+L(x,H-1);n+=2}b/=n;
-    var hit=function(v,col){var k=0,t=0;for(var j=10;j<(col?H:W)-10;j+=4){var l=col?L(v,j):L(j,v);t++;if(Math.abs(l-b)>24&&l>110)k++}return k>t*.35};
-    var x0=0,x1=W-1,y0=0,y1=H-1,i;
-    for(i=5;i<W*.4;i++)if(hit(i,1)){x0=i;break}
-    for(i=W-6;i>W*.6;i--)if(hit(i,1)){x1=i;break}
-    for(i=5;i<H*.4;i++)if(hit(i,0)){y0=i;break}
-    for(i=H-6;i>H*.6;i--)if(hit(i,0)){y1=i;break}
-    var sx=im.naturalWidth/W,sy=im.naturalHeight/H,bw=(x1-x0)*sx,bh=(y1-y0)*sy;
-    if(bw<im.naturalWidth*.4||bh<im.naturalHeight*.4) return{x:0,y:0,width:im.naturalWidth,height:im.naturalHeight};
-    return{x:x0*sx,y:y0*sy,width:bw,height:bh};
+    var cv = document.createElement("canvas"), W = 240, H = Math.round(im.naturalHeight * W / im.naturalWidth);
+    cv.width = W; cv.height = H;
+    var g = cv.getContext("2d");
+    g.drawImage(im, 0, 0, W, H);
+    var d = g.getImageData(0, 0, W, H).data;
+
+    var getLum = function(x, y){
+        var i = (y * W + x) * 4;
+        return 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+    };
+
+    var x0 = 0, x1 = W - 1, y0 = 0, y1 = H - 1;
+
+    // Left Edge
+    for(var x = 4; x < W * 0.45; x++){
+        var whiteCount = 0;
+        for(var y = Math.round(H * 0.2); y < H * 0.8; y += 2){
+            if(getLum(x, y) > 135) whiteCount++;
+        }
+        if(whiteCount / (H * 0.3) > 0.55){ x0 = Math.max(0, x - 2); break; }
+    }
+
+    // Right Edge
+    for(var x = W - 5; x > W * 0.55; x--){
+        var whiteCount = 0;
+        for(var y = Math.round(H * 0.2); y < H * 0.8; y += 2){
+            if(getLum(x, y) > 135) whiteCount++;
+        }
+        if(whiteCount / (H * 0.3) > 0.55){ x1 = Math.min(W - 1, x + 2); break; }
+    }
+
+    // Top Edge
+    for(var y = 4; y < H * 0.45; y++){
+        var whiteCount = 0;
+        for(var x = Math.round(W * 0.2); x < W * 0.8; x += 2){
+            if(getLum(x, y) > 135) whiteCount++;
+        }
+        if(whiteCount / (W * 0.3) > 0.55){ y0 = Math.max(0, y - 2); break; }
+    }
+
+    // Bottom Edge
+    for(var y = H - 5; y > H * 0.55; y--){
+        var whiteCount = 0;
+        for(var x = Math.round(W * 0.2); x < W * 0.8; x += 2){
+            if(getLum(x, y) > 135) whiteCount++;
+        }
+        if(whiteCount / (W * 0.3) > 0.55){ y1 = Math.min(H - 1, y + 2); break; }
+    }
+
+    var sx = im.naturalWidth / W, sy = im.naturalHeight / H;
+    var cropW = (x1 - x0) * sx, cropH = (y1 - y0) * sy;
+
+    if(cropW < im.naturalWidth * 0.35 || cropH < im.naturalHeight * 0.35){
+        return { x: 0, y: 0, width: im.naturalWidth, height: im.naturalHeight };
+    }
+
+    return {
+        x: Math.round(x0 * sx),
+        y: Math.round(y0 * sy),
+        width: Math.round(cropW),
+        height: Math.round(cropH)
+    };
 }
 
 function newCk(u){ei=-1;openC(u)}
