@@ -1,13 +1,11 @@
-// AUTO CACHE-BUSTING SERVICE WORKER
-const CACHE_NAME = 'pdi-pro-v' + Date.now();
+// SAFE STABLE SERVICE WORKER
+const CACHE_NAME = 'pdi-pro-stable-v10';
 
 self.addEventListener('install', (e) => {
-  // Puthiya version vannal udane thanne active aavunnu
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
-  // Pazhaya ellaa cache-um udane clean cheyyunnu
   e.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
@@ -21,7 +19,7 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Network First strategy: Aadhyam online network-il ninnu latest file edukkaam nokkum
+// Network-First logic
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
