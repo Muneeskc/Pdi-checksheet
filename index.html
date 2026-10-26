@@ -63,7 +63,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 .cf .filter-btn.active{background:#0284c7;color:#fff;border-color:#38bdf8;font-weight:bold}
 
 #cm.flt-original .cropper-container img { filter: none !important; }
-#cm.flt-enhance .cropper-container img { filter: contrast(1.4) brightness(1.1) saturate(1.2) !important; }
+#cm.flt-enhance .cropper-container img { filter: contrast(1.4) brightness(1.15) saturate(1.2) !important; }
 #cm.flt-grayscale .cropper-container img { filter: grayscale(100%) contrast(1.2) !important; }
 #cm.flt-bw .cropper-container img { filter: grayscale(100%) contrast(2.6) brightness(1.2) !important; }
 
@@ -110,7 +110,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="sec"><span>📸 Additional Inspection Photos</span><i>Optional (Multi-select)</i></div>
 <div class="box" style="text-align:center"><div class="row"><button onclick="pick(1,addP)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP,1)">🖼️ From Gallery</button></div><div class="gal" id="ga"></div></div>
 
-<div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; Ultra HD</i></div>
+<div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; HD Clarity</i></div>
 <div class="box" style="text-align:center">
     <div class="row"><button onclick="pick(1,newCk,0,true)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk,0,true)">🖼️ From Gallery</button></div>
     <div class="gal" id="gc"></div>
@@ -140,8 +140,8 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     <div class="cf">
         <div style="text-align:center;font-size:12px;color:var(--mu);font-weight:bold;">Enhance Filter:</div>
         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
-            <button type="button" class="filter-btn active" id="f-orig" onclick="setFilter('original')">Original</button>
-            <button type="button" class="filter-btn" id="f-magic" onclick="setFilter('enhance')">⚡ Magic Color</button>
+            <button type="button" class="filter-btn" id="f-orig" onclick="setFilter('original')">Original</button>
+            <button type="button" class="filter-btn active" id="f-magic" onclick="setFilter('enhance')">⚡ Magic Color</button>
             <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
             <button type="button" class="filter-btn" id="f-bw" onclick="setFilter('bw')">Pure White (Scan)</button>
         </div>
@@ -349,82 +349,52 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 }
 
-// 1280px STRICT COMPRESSION (Vehicle Photos, Stickers & Battery)
+// CHECKLIST OZHICHULLA ELLAAM COMPRESS CHEYYUNNA FUNCTION (1200px + 0.65 JPEG)
 function smartCompress(fileOrBase64) {
     return new Promise((resolve) => {
         let img = new Image();
-        let src = typeof fileOrBase64 === 'string' ? fileOrBase64 : URL.createObjectURL(fileOrBase64);
-        img.src = src;
+        let isBlob = typeof fileOrBase64 !== 'string';
+        let src = isBlob ? URL.createObjectURL(fileOrBase64) : fileOrBase64;
+        
         img.onload = () => {
-            let canvas = document.createElement('canvas');
-            let width = img.naturalWidth || img.width;
-            let height = img.naturalHeight || img.height;
-
-            const MAX_WIDTH = 1280;
-            if (width > MAX_WIDTH) {
-                height = Math.round((height * MAX_WIDTH) / width);
-                width = MAX_WIDTH;
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-            let ctx = canvas.getContext('2d', { alpha: false });
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'medium';
-            ctx.drawImage(img, 0, 0, width, height);
-
-            if (typeof fileOrBase64 !== 'string') URL.revokeObjectURL(src);
-            resolve(canvas.toDataURL('image/jpeg', 0.70));
-        };
-        img.onerror = () => resolve(src);
-    });
-}
-
-// SAFE CHECKLIST MEMORY RESCALE (2800px Ultra HD - Prevents Out-Of-Memory Crash)
-function safeChecklistScale(file) {
-    return new Promise((resolve) => {
-        let img = new Image();
-        let src = URL.createObjectURL(file);
-        img.src = src;
-        img.onload = () => {
-            let width = img.naturalWidth || img.width;
-            let height = img.naturalHeight || img.height;
-            const MAX_DIM = 2800; // Ultra HD clarity for text, completely safe for browser RAM
-
-            if (width > MAX_DIM || height > MAX_DIM) {
+            try {
                 let canvas = document.createElement('canvas');
-                if (width > height) {
-                    canvas.width = MAX_DIM;
-                    canvas.height = Math.round((height * MAX_DIM) / width);
-                } else {
-                    canvas.height = MAX_DIM;
-                    canvas.width = Math.round((width * MAX_DIM) / height);
+                let width = img.naturalWidth || img.width;
+                let height = img.naturalHeight || img.height;
+
+                const MAX_WIDTH = 1200;
+                if (width > MAX_WIDTH) {
+                    height = Math.round((height * MAX_WIDTH) / width);
+                    width = MAX_WIDTH;
                 }
-                let ctx = canvas.getContext('2d');
+
+                canvas.width = width;
+                canvas.height = height;
+                let ctx = canvas.getContext('2d', { alpha: false });
                 ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                URL.revokeObjectURL(src);
-                resolve(canvas.toDataURL('image/jpeg', 0.95));
-            } else {
-                URL.revokeObjectURL(src);
-                let r = new FileReader();
-                r.onload = (e) => resolve(e.target.result);
-                r.readAsDataURL(file);
+                ctx.imageSmoothingQuality = 'medium';
+                ctx.drawImage(img, 0, 0, width, height);
+
+                let compressedData = canvas.toDataURL('image/jpeg', 0.65);
+                if (isBlob) URL.revokeObjectURL(src);
+                resolve(compressedData);
+            } catch(e) {
+                console.error("Compression error:", e);
+                if (isBlob) URL.revokeObjectURL(src);
+                resolve(src);
             }
         };
         img.onerror = () => {
-            URL.revokeObjectURL(src);
-            let r = new FileReader();
-            r.onload = (e) => resolve(e.target.result);
-            r.readAsDataURL(file);
+            if (isBlob) URL.revokeObjectURL(src);
+            resolve(src);
         };
+        img.src = src;
     });
 }
 
 // ================= APP ORIGINAL LOGIC =================
 var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
-var selectedFilter = 'original';
+var selectedFilter = 'enhance';
 
 var CAT={"Nexon":["Smart","Smart+","Smart+ S","Pure","Pure S","Creative","Creative+","Creative+ S","Fearless","Fearless S","Fearless+ S","Fearless+ S Dark"],
 "Nexon EV":["Creative 45","Creative+ 45","Fearless 45","Fearless+ 45","Fearless+ S 45","Empowered 45","Empowered+ 45","Empowered+ Dark 45","Creative 30","Fearless 30","Empowered+ 30"],
@@ -463,10 +433,12 @@ function pick(cam,cb,multi,isCk){
     i.click();
 }
 
+// Checklist-nu direct original file, baki ellaathinum smartCompress
 async function rd(f,cb,isCk){
     if(isCk){
-        let safeImage = await safeChecklistScale(f);
-        cb(safeImage);
+        var r = new FileReader();
+        r.onload = function(e){ cb(e.target.result); };
+        r.readAsDataURL(f);
     } else {
         let compactImage = await smartCompress(f);
         cb(compactImage);
@@ -493,8 +465,10 @@ function setFilter(mode){
     modal.className = 'flt-' + mode;
 }
 
+// High Contrast Document Filter (Clean white paper + Dark sharp text)
 function processCanvasFilter(cv, mode){
-    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.92);
+    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.90);
+    
     var ctx = cv.getContext("2d");
     var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
     var d = imgData.data;
@@ -503,33 +477,41 @@ function processCanvasFilter(cv, mode){
         var r = d[i], gr = d[i+1], b = d[i+2];
 
         if(mode === 'enhance'){
-            var contrast = 1.35, brightness = 15;
-            d[i]   = Math.min(255, Math.max(0, (r - 128) * contrast + 128 + brightness));
-            d[i+1] = Math.min(255, Math.max(0, (gr - 128) * contrast + 128 + brightness));
-            d[i+2] = Math.min(255, Math.max(0, (b - 128) * contrast + 128 + brightness));
+            var lum = 0.299 * r + 0.587 * gr + 0.114 * b;
+            if(lum > 138) {
+                d[i]   = Math.min(255, r * 1.35);
+                d[i+1] = Math.min(255, gr * 1.35);
+                d[i+2] = Math.min(255, b * 1.35);
+            } else {
+                d[i]   = Math.max(0, r * 0.65);
+                d[i+1] = Math.max(0, gr * 0.65);
+                d[i+2] = Math.max(0, b * 0.65);
+            }
         } else if(mode === 'grayscale'){
             var gray = 0.299 * r + 0.587 * gr + 0.114 * b;
             d[i] = gray; d[i+1] = gray; d[i+2] = gray;
         } else if(mode === 'bw'){
             var gray2 = 0.299 * r + 0.587 * gr + 0.114 * b;
-            var val = gray2 > 130 ? 255 : (gray2 * 0.7);
+            var val = gray2 > 135 ? 255 : 0;
             d[i] = val; d[i+1] = val; d[i+2] = val;
         }
     }
     ctx.putImageData(imgData, 0, 0);
-    return cv.toDataURL("image/jpeg", 0.92);
+    return cv.toDataURL("image/jpeg", 0.90);
 }
 
 var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]],DOC=[["f22","Form 22"],["pen","Chassis Print"]];
 
+// Documents-um compress aayi mathram store aakunnu
 function card(host,store,k,n,ic,crop){
     var d=document.createElement("div");
     d.className="card";
     d.innerHTML='<div class="l">'+n+'</div><div class="p">'+ic+'</div><div class="b"><button>Cam</button><button class="gl">Gal</button></div>';
     var bs=d.querySelectorAll("button");
-    var set=function(u){
-        store[k]=u;
-        d.querySelector(".p").innerHTML='<img src="'+u+'">';
+    var set=async function(u){
+        let comp = await smartCompress(u);
+        store[k]=comp;
+        d.querySelector(".p").innerHTML='<img src="'+comp+'">';
     };
     var go=crop?function(u){ei=-2;tg=function(x){set(x)};openC(u)}:set;
     bs[0].onclick=function(){pick(1,go,0,crop?true:false)};
@@ -551,10 +533,15 @@ SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});DOC.forEach(fun
 function gal(id,arr,edit){var c=$(id);c.innerHTML="";arr.forEach(function(u,i){var t=document.createElement("div");t.className="th";t.innerHTML='<img src="'+u+'"><button class="x">✕</button>'+(edit?'<button class="e">Edit</button>':'');
 t.querySelector(".x").onclick=function(){arr.splice(i,1);if(edit)D.ko.splice(i,1);gal(id,arr,edit)};if(edit)t.querySelector(".e").onclick=function(){ei=i;openC(D.ko[i]||u)};c.appendChild(t)})}
 function addP(u){D.add.push(u);gal("ga",D.add,0)}
-async function sticker(u){D.sticker=u;$("spv").innerHTML='<img src="'+u+'">';$("st").textContent="Scanning barcode...";
-var im=new Image();im.src=u;await new Promise(function(r){im.onload=r});var code=await scan(im);
-if(code){var m=code.match(/MAT[A-Z0-9]{14}/);$("C").value=m?m[0]:code;$("st").textContent="Chassis detected: "+$("C").value+". Select the model below."}
-else $("st").textContent="Barcode not read. Type the chassis number and pick the model manually."}
+async function sticker(u){
+    let compactSticker = await smartCompress(u);
+    D.sticker=compactSticker;
+    $("spv").innerHTML='<img src="'+compactSticker+'">';
+    $("st").textContent="Scanning barcode...";
+    var im=new Image();im.src=compactSticker;await new Promise(function(r){im.onload=r});var code=await scan(im);
+    if(code){var m=code.match(/MAT[A-Z0-9]{14}/);$("C").value=m?m[0]:code;$("st").textContent="Chassis detected: "+$("C").value+". Select the model below."}
+    else $("st").textContent="Barcode not read. Type the chassis number and pick the model manually.";
+}
 async function scan(im){var out="",ang=[0,90,270];
 for(var a=0;a<3&&!out;a++){var c=document.createElement("canvas"),s=Math.min(1,1400/Math.max(im.width,im.height)),w=im.width*s,h=im.height*s,sw=ang[a]!=0;c.width=sw?h:w;c.height=sw?w:h;var g=c.getContext("2d");g.translate(c.width/2,c.height/2);g.rotate(ang[a]*Math.PI/180);g.drawImage(im,-w/2,-h/2,w,h);
 try{if("BarcodeDetector" in window){var r=await new BarcodeDetector({formats:["code_128","code_39","qr_code"]}).detect(c);if(r.length&&r[0].rawValue)out=r[0].rawValue}}catch(e){}
@@ -568,13 +555,15 @@ for(i=5;i<H*.4;i++)if(hit(i,0)){y0=i;break}for(i=H-6;i>H*.6;i--)if(hit(i,0)){y1=
 var sx=im.naturalWidth/W,sy=im.naturalHeight/H,bw=(x1-x0)*sx,bh=(y1-y0)*sy;
 if(bw<im.naturalWidth*.4||bh<im.naturalHeight*.4)return{x:im.naturalWidth*.05,y:im.naturalHeight*.05,width:im.naturalWidth*.9,height:im.naturalHeight*.9};return{x:x0*sx,y:y0*sy,width:bw,height:bh}}
 function newCk(u){ei=-1;openC(u)}
+
+// Default Enhance Filter
 function openC(u){
     var i=$("ci");
-    setFilter('original');
+    setFilter('enhance');
     $("cm").style.display="flex";
     if(cr){cr.destroy();cr=null;}
     i.onload=function(){
-        cr=new Cropper(i,{viewMode:1,autoCropArea:.95,restore:false,highlight:false,toggleDragModeOnDblclick:false,ready:function(){cr.setData(box(i))}});
+        cr=new Cropper(i,{viewMode:1,autoCropArea:.98,restore:false,highlight:false,toggleDragModeOnDblclick:false,ready:function(){cr.setData(box(i))}});
     };
     i.src=u;
 }
@@ -582,15 +571,16 @@ function auto(){if(cr)cr.setData(box($("ci")))}
 function closeC(){
     if(cr){cr.destroy();cr=null;}
     var i=$("ci");
-    i.src=""; // Clear memory
+    i.src="";
     $("cm").style.display="none";
 }
 
+// 2400px resolution + 0.90 quality for checklist (Sharp text, ~1.5MB size)
 function doneC(){
     if(!cr)return;
     var canvas = cr.getCroppedCanvas({
-        maxWidth: 2800,
-        maxHeight: 2800,
+        maxWidth: 2400,
+        maxHeight: 2400,
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high'
     });
