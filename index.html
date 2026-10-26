@@ -68,19 +68,11 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 .cf .filter-btn{border:1px solid var(--bd);background:var(--in);color:var(--tx)}
 .cf .filter-btn.active{background:#0284c7;color:#fff;border-color:#38bdf8;font-weight:bold}
 
-/* ORIGINAL LIVE PREVIEW FILTERS (ACCURATE MATCH WITH OUTPUT) */
-#cm.flt-original .cropper-view-box img, #cm.flt-original .cropper-canvas img { 
-    filter: none !important; 
-}
-#cm.flt-enhance .cropper-view-box img, #cm.flt-enhance .cropper-canvas img { 
-    filter: contrast(1.3) brightness(1.1) saturate(1.2) !important; 
-}
-#cm.flt-grayscale .cropper-view-box img, #cm.flt-grayscale .cropper-canvas img { 
-    filter: grayscale(100%) contrast(1.2) brightness(1.05) !important; 
-}
-#cm.flt-bw .cropper-view-box img, #cm.flt-bw .cropper-canvas img { 
-    filter: grayscale(100%) contrast(2.6) brightness(1.2) !important; 
-}
+/* REALISTIC LIVE DOCUMENT FILTERS */
+#cm.flt-original .cropper-view-box img, #cm.flt-original .cropper-canvas img { filter: none !important; }
+#cm.flt-enhance .cropper-view-box img, #cm.flt-enhance .cropper-canvas img { filter: contrast(1.3) brightness(1.1) saturate(1.2) !important; }
+#cm.flt-grayscale .cropper-view-box img, #cm.flt-grayscale .cropper-canvas img { filter: grayscale(100%) contrast(1.2) brightness(1.05) !important; }
+#cm.flt-bw .cropper-view-box img, #cm.flt-bw .cropper-canvas img { filter: grayscale(100%) contrast(2.6) brightness(1.2) !important; }
 
 /* Cropper Core CSS */
 .cropper-container{direction:ltr;font-size:0;line-height:0;position:relative;touch-action:none;user-select:none}
@@ -184,7 +176,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v7", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v9", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -449,12 +441,11 @@ function pick(cam,cb,multi,isCk){
     i.click();
 }
 
-// Checklist original resolution direct read
+// LOW-MEMORY CRASH PREVENTED: URL.createObjectURL vazhi 0 RAM use
 async function rd(f,cb,isCk){
     if(isCk){
-        var r = new FileReader();
-        r.onload = function(e){ cb(e.target.result); };
-        r.readAsDataURL(f);
+        let blobUrl = URL.createObjectURL(f);
+        cb(blobUrl);
     } else {
         let compactImage = await smartCompress(f);
         cb(compactImage);
@@ -481,7 +472,7 @@ function setFilter(mode){
     modal.className = 'flt-' + mode;
 }
 
-// EXACT ORIGINAL SCANNER PIXEL ENGINE (PURE WHITE SCAN + NATURAL MAGIC COLOR)
+// ORIGINAL SCANNER PIXEL ENGINE (PURE WHITE SCAN + NATURAL MAGIC COLOR)
 function processCanvasFilter(cv, mode){
     if(mode === 'original') return cv.toDataURL("image/jpeg", 0.90);
     
@@ -493,7 +484,6 @@ function processCanvasFilter(cv, mode){
         var r = d[i], g = d[i+1], b = d[i+2];
 
         if(mode === 'enhance'){
-            // Magic Color: Paper clean soft white, text dark, marks preserved
             var lum = 0.299 * r + 0.587 * g + 0.114 * b;
             if(lum > 140) {
                 d[i]   = Math.min(255, r * 1.35);
@@ -508,7 +498,6 @@ function processCanvasFilter(cv, mode){
             var gray = 0.299 * r + 0.587 * g + 0.114 * b;
             d[i] = gray; d[i+1] = gray; d[i+2] = gray;
         } else if(mode === 'bw'){
-            // Original Pure White (Scan): Background pure 255 white, text solid black
             var gray2 = 0.299 * r + 0.587 * g + 0.114 * b;
             var val = gray2 > 135 ? 255 : 0;
             d[i] = val; d[i+1] = val; d[i+2] = val;
@@ -587,7 +576,7 @@ function box(im){
 
 function newCk(u){ei=-1;openC(u)}
 
-// BACK BUTTON PROTECTION
+// ANDROID BACK BUTTON PROTECTION
 window.addEventListener('popstate', function(e){
     if($("cm").style.display === "flex"){
         closeC(false);
@@ -624,6 +613,7 @@ function auto(){
 function closeC(goBack){
     if(cr){cr.destroy();cr=null;}
     var i=$("ci");
+    if(i.src.startsWith("blob:")) URL.revokeObjectURL(i.src);
     i.src="";
     $("cm").style.display="none";
     if(goBack && history.state && history.state.modal === "scanner"){
@@ -631,11 +621,12 @@ function closeC(goBack){
     }
 }
 
+// 2000px MEMORY-SAFE RESOLUTION (SHARP TEXT + NO CRASH)
 function doneC(){
     if(!cr)return;
     var canvas = cr.getCroppedCanvas({
-        maxWidth: 2400,
-        maxHeight: 2400,
+        maxWidth: 2000,
+        maxHeight: 2000,
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high'
     });
@@ -727,7 +718,7 @@ async function out(share){
 </script>
 
 <script>
-// AUTO-UPDATE SERVICE WORKER (Cache clear cheyyathe update varaan)
+// AUTO-UPDATE SERVICE WORKER
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js?v=' + Date.now(), { updateViaCache: 'none' })
