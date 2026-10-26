@@ -173,7 +173,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v13", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v14", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -355,11 +355,13 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 }
 
-// STANDARD VEHICLE PHOTO COMPRESSOR (Strict 1200px / 200KB)
-function smartCompress(fileOrBlob) {
+// SAFE & FAST PHOTO RESIZER (BLOB & BASE64 BOTH SUPPORTED)
+function smartCompress(fileOrBase64) {
     return new Promise((resolve) => {
-        const img = new Image();
-        const url = URL.createObjectURL(fileOrBlob);
+        let img = new Image();
+        let isBlob = typeof fileOrBase64 !== 'string';
+        let src = isBlob ? URL.createObjectURL(fileOrBase64) : fileOrBase64;
+        
         img.onload = () => {
             try {
                 let w = img.naturalWidth || img.width;
@@ -380,18 +382,18 @@ function smartCompress(fileOrBlob) {
                 ctx.imageSmoothingEnabled = true;
                 ctx.imageSmoothingQuality = 'medium';
                 ctx.drawImage(img, 0, 0, w, h);
-                URL.revokeObjectURL(url);
+                if (isBlob) URL.revokeObjectURL(src);
                 resolve(cv.toDataURL('image/jpeg', 0.65));
             } catch(e) {
-                URL.revokeObjectURL(url);
-                resolve(url);
+                if (isBlob) URL.revokeObjectURL(src);
+                resolve(src);
             }
         };
         img.onerror = () => {
-            URL.revokeObjectURL(url);
-            resolve(url);
+            if (isBlob) URL.revokeObjectURL(src);
+            resolve(src);
         };
-        img.src = url;
+        img.src = src;
     });
 }
 
@@ -436,7 +438,7 @@ function pick(cam,cb,multi,isCk){
     i.click();
 }
 
-// CHECKLIST DIRECT READ (NO PRE-SCALING BLUR)
+// CHECKLIST DIRECT READ (HIGH SHARPNESS)
 async function rd(f,cb,isCk){
     if(isCk){
         let blobUrl = URL.createObjectURL(f);
@@ -509,10 +511,9 @@ function card(host,store,k,n,ic,crop){
     d.className="card";
     d.innerHTML='<div class="l">'+n+'</div><div class="p">'+ic+'</div><div class="b"><button>Cam</button><button class="gl">Gal</button></div>';
     var bs=d.querySelectorAll("button");
-    var set=async function(u){
-        let comp = await smartCompress(u);
-        store[k]=comp;
-        d.querySelector(".p").innerHTML='<img src="'+comp+'">';
+    var set=function(u){
+        store[k]=u;
+        d.querySelector(".p").innerHTML='<img src="'+u+'">';
     };
     var go=crop?function(u){ei=-2;tg=function(x){set(x)};openC(u)}:set;
     bs[0].onclick=function(){pick(1,go,0,crop?true:false)};
@@ -535,11 +536,10 @@ function gal(id,arr,edit){var c=$(id);c.innerHTML="";arr.forEach(function(u,i){v
 t.querySelector(".x").onclick=function(){arr.splice(i,1);if(edit)D.ko.splice(i,1);gal(id,arr,edit)};if(edit)t.querySelector(".e").onclick=function(){ei=i;openC(D.ko[i]||u)};c.appendChild(t)})}
 function addP(u){D.add.push(u);gal("ga",D.add,0)}
 async function sticker(u){
-    let compactSticker = await smartCompress(u);
-    D.sticker=compactSticker;
-    $("spv").innerHTML='<img src="'+compactSticker+'">';
+    D.sticker=u;
+    $("spv").innerHTML='<img src="'+u+'">';
     $("st").textContent="Scanning barcode...";
-    var im=new Image();im.src=compactSticker;await new Promise(function(r){im.onload=r});var code=await scan(im);
+    var im=new Image();im.src=u;await new Promise(function(r){im.onload=r});var code=await scan(im);
     if(code){var m=code.match(/MAT[A-Z0-9]{14}/);$("C").value=m?m[0]:code;$("st").textContent="Chassis detected: "+$("C").value+". Select the model below."}
     else $("st").textContent="Barcode not read. Type the chassis number and pick the model manually.";
 }
