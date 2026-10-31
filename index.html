@@ -109,7 +109,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div class="row" style="margin:-2px 0 10px"><input type="text" id="nm" placeholder="New model name" style="margin:0"><button onclick="addM()">＋ Add</button></div>
 <input type="text" id="M" placeholder="Model" style="margin:0"></div>
 
-<label>Chassis Number (17 Digits)</label>
+<label>Chassis Number</label>
 <input type="text" id="C" placeholder="e.g. MAT853036TWHX0267" style="text-transform:uppercase">
 
 <div class="box"><label>Inspector / Technician Name</label>
@@ -183,7 +183,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v25", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v26", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -410,9 +410,9 @@ function smartCompress(fileOrBase64, maxDim=1200, quality=0.75) {
 
 // ================= APP ORIGINAL LOGIC =================
 var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
-var selectedFilter = 'original'; // DEFAULT TO ORIGINAL TO PREVENT BLACK PATCHES
+var selectedFilter = 'original'; // DEFAULT TO ORIGINAL
 
-// INSPECTOR ADD & REMOVE (NO DEFAULT YARD TEAM)
+// INSPECTOR ADD & REMOVE
 var savedInspectors = [];
 try { 
     var localData = localStorage.getItem("yardInspectors");
@@ -508,7 +508,7 @@ function pick(cam, cb, multi, isCk){
     i.click();
 }
 
-// CHECKLIST 2000px HD PIPELINE (SHARP AND ULTRA-CLEAR TEXT)
+// CHECKLIST 2000px HD PIPELINE
 async function rd(f,cb,isCk){
     if(isCk){
         let scaled = await smartCompress(f, 2000, 0.95);
@@ -552,7 +552,6 @@ function processCanvasFilter(cv, mode){
         var lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
         if(mode === 'enhance'){
-            // Soft contrast boost without turning shadows into dark black
             d[i]   = Math.min(255, Math.max(0, (r - 128) * 1.15 + 128 + 10));
             d[i+1] = Math.min(255, Math.max(0, (g - 128) * 1.15 + 128 + 10));
             d[i+2] = Math.min(255, Math.max(0, (b - 128) * 1.15 + 128 + 10));
@@ -605,19 +604,82 @@ card("docs", D.doc, "pen", "Chassis Print", "📋", 0);
 function gal(id,arr,edit){var c=$(id);c.innerHTML="";arr.forEach(function(u,i){var t=document.createElement("div");t.className="th";t.innerHTML='<img src="'+u+'"><button class="x">✕</button>'+(edit?'<button class="e">Edit</button>':'');
 t.querySelector(".x").onclick=function(){arr.splice(i,1);if(edit)D.ko.splice(i,1);gal(id,arr,edit)};if(edit)t.querySelector(".e").onclick=function(){ei=i;openC(D.ko[i]||u)};c.appendChild(t)})}
 function addP(u){D.add.push(u);gal("ga",D.add,0)}
+
+// SMART MAT CHASSIS EXTRACTOR (NO DIGIT RESTRICTIONS)
 async function sticker(u){
-    D.sticker=u;
-    $("spv").innerHTML='<img src="'+u+'">';
-    $("st").textContent="Scanning barcode...";
-    var im=new Image();im.src=u;await new Promise(function(r){im.onload=r});var code=await scan(im);
-    if(code){var m=code.match(/MAT[A-Z0-9]{14}/);$("C").value=m?m[0]:code;$("st").textContent="Chassis detected: "+$("C").value+". Select the model below."}
-    else $("st").textContent="Barcode not read. Type the chassis number and pick the model manually.";
+    D.sticker = u;
+    $("spv").innerHTML = '<img src="'+u+'">';
+    $("st").textContent = "Scanning barcode...";
+    var im = new Image();
+    im.src = u;
+    await new Promise(function(r){ im.onload = r; });
+    
+    var vinCode = await scan(im);
+    if(vinCode){
+        $("C").value = vinCode;
+        $("st").style.color = "#10b981";
+        $("st").textContent = "✓ Chassis detected: " + vinCode + ". Select the model below.";
+    } else {
+        $("st").style.color = "#d97706";
+        $("st").textContent = "Barcode not read or no 'MAT' code found. Please enter manually.";
+    }
 }
-async function scan(im){var out="",ang=[0,90,270];
-for(var a=0;a<3&&!out;a++){var c=document.createElement("canvas"),s=Math.min(1,1400/Math.max(im.width,im.height)),w=im.width*s,h=im.height*s,sw=ang[a]!=0;c.width=sw?h:w;c.height=sw?w:h;var g=c.getContext("2d");g.translate(c.width/2,c.height/2);g.rotate(ang[a]*Math.PI/180);g.drawImage(im,-w/2,-h/2,w,h);
-try{if("BarcodeDetector" in window){var r=await new BarcodeDetector({formats:["code_128","code_39","qr_code"]}).detect(c);if(r.length&&r[0].rawValue)out=r[0].rawValue}}catch(e){}
-if(!out&&window.ZXing){try{var x=await new ZXing.BrowserMultiFormatReader().decodeFromCanvas(c);if(x)out=x.getText()}catch(e){}}}
-return out.replace(/[^A-Z0-9]/gi,"").toUpperCase()}
+
+async function scan(im){
+    var ang = [0, 90, 270];
+    
+    for(var a = 0; a < ang.length; a++){
+        var c = document.createElement("canvas");
+        var s = Math.min(1, 1600 / Math.max(im.width, im.height));
+        var w = im.width * s;
+        var h = im.height * s;
+        var sw = ang[a] != 0;
+        c.width = sw ? h : w;
+        c.height = sw ? w : h;
+        
+        var g = c.getContext("2d");
+        g.translate(c.width / 2, c.height / 2);
+        g.rotate(ang[a] * Math.PI / 180);
+        g.drawImage(im, -w / 2, -h / 2, w, h);
+        
+        // 1. Native BarcodeDetector (Picks any barcode starting with MAT)
+        try {
+            if ("BarcodeDetector" in window) {
+                var detector = new BarcodeDetector({ formats: ["code_128", "code_39", "qr_code", "data_matrix"] });
+                var results = await detector.detect(c);
+                if (results && results.length > 0) {
+                    for (let item of results) {
+                        let cleanText = (item.rawValue || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+                        let match = cleanText.match(/MAT[A-Z0-9]+/);
+                        if (match) {
+                            c.width = 1; c.height = 1;
+                            return match[0];
+                        }
+                    }
+                }
+            }
+        } catch(e){}
+        
+        // 2. ZXing Fallback Engine
+        if (window.ZXing) {
+            try {
+                var reader = new ZXing.BrowserMultiFormatReader();
+                var zRes = await reader.decodeFromCanvas(c);
+                if (zRes) {
+                    let cleanText = zRes.getText().replace(/[^A-Z0-9]/gi, "").toUpperCase();
+                    let match = cleanText.match(/MAT[A-Z0-9]+/);
+                    if (match) {
+                        c.width = 1; c.height = 1;
+                        return match[0];
+                    }
+                }
+            } catch(e){}
+        }
+        
+        c.width = 1; c.height = 1; // Release canvas RAM
+    }
+    return null;
+}
 
 // 100% ACCURATE EDGE SCAN DETECTION WITH RESOURCE CLEANUP
 function box(im){
