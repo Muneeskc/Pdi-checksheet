@@ -1,5 +1,5 @@
-// AUTO-UPDATING NETWORK-FIRST SERVICE WORKER (ZERO-CACHE CONFLICT)
-const CACHE_NAME = 'pdi-pro-cache-v23';
+// AUTO-UPDATING NETWORK-FIRST SERVICE WORKER (VERSION 24)
+const CACHE_NAME = 'pdi-pro-cache-v24';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
