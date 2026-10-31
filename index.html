@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Vehicle Inward &amp; Inspection Pro</title>
 
 <!-- PWA Settings -->
@@ -67,9 +70,9 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
 /* REALISTIC LIVE DOCUMENT FILTERS */
 #cm.flt-original .cropper-view-box img, #cm.flt-original .cropper-canvas img { filter: none !important; }
-#cm.flt-enhance .cropper-view-box img, #cm.flt-enhance .cropper-canvas img { filter: contrast(1.3) brightness(1.1) saturate(1.2) !important; }
+#cm.flt-enhance .cropper-view-box img, #cm.flt-enhance .cropper-canvas img { filter: contrast(1.25) brightness(1.1) saturate(1.15) !important; }
 #cm.flt-grayscale .cropper-view-box img, #cm.flt-grayscale .cropper-canvas img { filter: grayscale(100%) contrast(1.2) brightness(1.05) !important; }
-#cm.flt-bw .cropper-view-box img, #cm.flt-bw .cropper-canvas img { filter: grayscale(100%) contrast(2.6) brightness(1.2) !important; }
+#cm.flt-bw .cropper-view-box img, #cm.flt-bw .cropper-canvas img { filter: grayscale(100%) contrast(2.2) brightness(1.18) !important; }
 
 /* Cropper Core CSS */
 .cropper-container{direction:ltr;font-size:0;line-height:0;position:relative;touch-action:none;user-select:none}
@@ -104,11 +107,15 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
 <div class="box"><label>1. Select Tata Model</label><select id="ms" onchange="onM()"><option value="">-- Choose Vehicle Model --</option></select>
 <div class="row" style="margin:-2px 0 10px"><input type="text" id="nm" placeholder="New model name" style="margin:0"><button onclick="addM()">＋ Add</button></div>
-
 <input type="text" id="M" placeholder="Model" style="margin:0"></div>
 
 <label>Chassis Number (17 Digits)</label>
 <input type="text" id="C" placeholder="e.g. MAT853036TWHX0267" style="text-transform:uppercase">
+
+<div class="box"><label>Inspector / Technician Name</label>
+<select id="inspSelect" onchange="onInspChange()"><option value="">-- Choose Inspector --</option></select>
+<div class="row" style="margin:-2px 0 10px"><input type="text" id="newInspInput" placeholder="Add new inspector" style="margin:0"><button onclick="addInspector()">＋ Add</button></div>
+<input type="text" id="inspName" placeholder="Inspector Name" style="margin:0"></div>
 
 <div class="sec"><span>📸 Vehicle Photos (Sides &amp; Corners)</span></div><div class="g3" id="six"></div>
 
@@ -173,7 +180,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v14", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v16", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -247,7 +254,7 @@ async function processPendingQueue() {
                         continue;
                     }
 
-                    let success = await sendToTelegramAndSheet(it.chassis, it.model, pdfBlob, it.fileName, it.dTime);
+                    let success = await sendToTelegramAndSheet(it.chassis, it.model, it.inspector, pdfBlob, it.fileName, it.dTime);
                     if (success) {
                         removeFromQueue(it.id);
                         if (msg) {
@@ -272,7 +279,7 @@ async function processPendingQueue() {
 
 window.addEventListener('online', processPendingQueue);
 
-async function sendToTelegramAndSheet(chassis, model, blob, fileName, dTime) {
+async function sendToTelegramAndSheet(chassis, model, inspector, blob, fileName, dTime) {
     if (!blob || blob.size === 0) {
         throw new Error("Empty PDF File");
     }
@@ -281,7 +288,7 @@ async function sendToTelegramAndSheet(chassis, model, blob, fileName, dTime) {
                     "📅 Date: " + dTime + "\n" +
                     "🔢 Chassis: " + chassis + "\n" +
                     "🚘 Model: " + model + "\n" +
-                    "👤 Inspector: Yard Team\n" +
+                    "👤 Inspector: " + inspector + "\n" +
                     "📁 File: " + fileName;
 
     const formData = new FormData();
@@ -311,7 +318,7 @@ async function sendToTelegramAndSheet(chassis, model, blob, fileName, dTime) {
                 dateTime: dTime,
                 chassis: chassis,
                 model: model,
-                inspector: 'Yard Team',
+                inspector: inspector,
                 status: 'COMPLETED',
                 fileName: fileName
             })
@@ -323,7 +330,7 @@ async function sendToTelegramAndSheet(chassis, model, blob, fileName, dTime) {
     return true;
 }
 
-async function uploadDirectly(chassis, model, blob, fileName) {
+async function uploadDirectly(chassis, model, inspector, blob, fileName) {
     const msg = $("msg");
     const dTime = new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN");
 
@@ -331,7 +338,7 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     msg.textContent = "⏳ Uploading PDF to Telegram...";
 
     let base64 = await blobToBase64(blob);
-    let queueId = await saveToQueue({ chassis, model, base64, fileName, dTime });
+    let queueId = await saveToQueue({ chassis, model, inspector, base64, fileName, dTime });
 
     if (!navigator.onLine) {
         msg.style.color = "#d97706";
@@ -340,7 +347,7 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 
     try {
-        let ok = await sendToTelegramAndSheet(chassis, model, blob, fileName, dTime);
+        let ok = await sendToTelegramAndSheet(chassis, model, inspector, blob, fileName, dTime);
         if (ok && queueId) {
             removeFromQueue(queueId);
         }
@@ -355,8 +362,8 @@ async function uploadDirectly(chassis, model, blob, fileName) {
     }
 }
 
-// SAFE & FAST PHOTO RESIZER (BLOB & BASE64 BOTH SUPPORTED)
-function smartCompress(fileOrBase64) {
+// RAM-SAFE RESIZING (BLOB & BASE64 BOTH SUPPORTED)
+function smartCompress(fileOrBase64, maxDim=1200, quality=0.65) {
     return new Promise((resolve) => {
         let img = new Image();
         let isBlob = typeof fileOrBase64 !== 'string';
@@ -366,14 +373,13 @@ function smartCompress(fileOrBase64) {
             try {
                 let w = img.naturalWidth || img.width;
                 let h = img.naturalHeight || img.height;
-                const MAX = 1200;
-                if (w > MAX || h > MAX) {
+                if (w > maxDim || h > maxDim) {
                     if (w > h) {
-                        h = Math.round((h * MAX) / w);
-                        w = MAX;
+                        h = Math.round((h * maxDim) / w);
+                        w = maxDim;
                     } else {
-                        w = Math.round((w * MAX) / h);
-                        h = MAX;
+                        w = Math.round((w * maxDim) / h);
+                        h = maxDim;
                     }
                 }
                 const cv = document.createElement('canvas');
@@ -383,7 +389,7 @@ function smartCompress(fileOrBase64) {
                 ctx.imageSmoothingQuality = 'medium';
                 ctx.drawImage(img, 0, 0, w, h);
                 if (isBlob) URL.revokeObjectURL(src);
-                resolve(cv.toDataURL('image/jpeg', 0.65));
+                resolve(cv.toDataURL('image/jpeg', quality));
             } catch(e) {
                 if (isBlob) URL.revokeObjectURL(src);
                 resolve(src);
@@ -400,6 +406,39 @@ function smartCompress(fileOrBase64) {
 // ================= APP ORIGINAL LOGIC =================
 var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
 var selectedFilter = 'enhance';
+
+// INSPECTOR PERSISTENCE LOGIC
+var DEFAULT_INSPECTORS = ["Yard Team", "Rahul", "Jishnu", "Akhil", "Vipin"];
+var savedInspectors = [];
+try { savedInspectors = JSON.parse(localStorage.getItem("yardInspectors") || "[]"); } catch(e){}
+var INSPECTOR_LIST = Array.from(new Set(DEFAULT_INSPECTORS.concat(savedInspectors)));
+
+function renderInspectors() {
+    var sel = $("inspSelect");
+    sel.innerHTML = '<option value="">-- Choose Inspector --</option>' + INSPECTOR_LIST.map(function(n){
+        return '<option value="'+n+'">'+n+'</option>';
+    }).join('');
+}
+renderInspectors();
+
+function onInspChange() {
+    var val = $("inspSelect").value;
+    if(val) $("inspName").value = val;
+}
+
+function addInspector() {
+    var n = $("newInspInput").value.trim();
+    if(!n) return;
+    if(INSPECTOR_LIST.indexOf(n) === -1) {
+        INSPECTOR_LIST.push(n);
+        savedInspectors.push(n);
+        try { localStorage.setItem("yardInspectors", JSON.stringify(savedInspectors)); } catch(e){}
+    }
+    renderInspectors();
+    $("inspSelect").value = n;
+    $("inspName").value = n;
+    $("newInspInput").value = "";
+}
 
 var CAT={"Nexon":["Smart","Smart+","Smart+ S","Pure","Pure S","Creative","Creative+","Creative+ S","Fearless","Fearless S","Fearless+ S","Fearless+ S Dark"],
 "Nexon EV":["Creative 45","Creative+ 45","Fearless 45","Fearless+ 45","Fearless+ S 45","Empowered 45","Empowered+ 45","Empowered+ Dark 45","Creative 30","Fearless 30","Empowered+ 30"],
@@ -438,13 +477,13 @@ function pick(cam,cb,multi,isCk){
     i.click();
 }
 
-// CHECKLIST DIRECT READ (HIGH SHARPNESS)
+// CHECKLIST MEMORY-SAFE 1800px HD PIPELINE (NO RAM CRASH)
 async function rd(f,cb,isCk){
     if(isCk){
-        let blobUrl = URL.createObjectURL(f);
-        cb(blobUrl);
+        let scaled = await smartCompress(f, 1800, 0.90);
+        cb(scaled);
     } else {
-        let compactImage = await smartCompress(f);
+        let compactImage = await smartCompress(f, 1200, 0.65);
         cb(compactImage);
     }
 }
@@ -469,9 +508,9 @@ function setFilter(mode){
     modal.className = 'flt-' + mode;
 }
 
-// ORIGINAL SCANNER PIXEL ENGINE (CRISP TEXT RETENTION)
+// ADAPTIVE SHADOW-REMOVAL FILTER (NO BLACK PATCHES IN LOW LIGHT)
 function processCanvasFilter(cv, mode){
-    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.92);
+    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.90);
     
     var ctx = cv.getContext("2d");
     var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
@@ -482,29 +521,32 @@ function processCanvasFilter(cv, mode){
 
         if(mode === 'enhance'){
             var lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            if(lum > 140) {
-                d[i]   = Math.min(255, r * 1.35);
-                d[i+1] = Math.min(255, g * 1.35);
-                d[i+2] = Math.min(255, b * 1.35);
+            if(lum > 95) {
+                var gain = 255 / Math.max(120, lum);
+                d[i]   = Math.min(255, r * gain * 1.05 + 15);
+                d[i+1] = Math.min(255, g * gain * 1.05 + 15);
+                d[i+2] = Math.min(255, b * gain * 1.05 + 15);
             } else {
-                d[i]   = Math.max(0, r * 0.65);
-                d[i+1] = Math.max(0, g * 0.65);
-                d[i+2] = Math.max(0, b * 0.65);
+                d[i]   = Math.max(0, r * 0.70);
+                d[i+1] = Math.max(0, g * 0.70);
+                d[i+2] = Math.max(0, b * 0.70);
             }
         } else if(mode === 'grayscale'){
             var gray = 0.299 * r + 0.587 * g + 0.114 * b;
+            if(gray > 105) gray = Math.min(255, gray * 1.25 + 20);
+            else gray = Math.max(0, gray * 0.75);
             d[i] = gray; d[i+1] = gray; d[i+2] = gray;
         } else if(mode === 'bw'){
             var gray2 = 0.299 * r + 0.587 * g + 0.114 * b;
-            var val = gray2 > 135 ? 255 : 0;
+            var val = gray2 > 105 ? 255 : 0;
             d[i] = val; d[i+1] = val; d[i+2] = val;
         }
     }
     ctx.putImageData(imgData, 0, 0);
-    return cv.toDataURL("image/jpeg", 0.92);
+    return cv.toDataURL("image/jpeg", 0.90);
 }
 
-var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]],DOC=[["f22","Form 22"],["pen","Chassis Print"]];
+var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]];
 
 function card(host,store,k,n,ic,crop){
     var d=document.createElement("div");
@@ -531,7 +573,13 @@ left:S0+SH+'</svg>',right:S0+MR+SH+'</g></svg>',
 var TV='<rect x="37" y="4" width="26" height="52" rx="9"/><rect x="40" y="13" width="20" height="9" rx="2" fill="#fff" opacity=".7"/><rect x="40" y="40" width="20" height="7" rx="2" fill="#fff" opacity=".7"/><rect x="33" y="10" width="4" height="9" rx="1"/><rect x="63" y="10" width="4" height="9" rx="1"/><rect x="33" y="41" width="4" height="9" rx="1"/><rect x="63" y="41" width="4" height="9" rx="1"/><text x="50" y="33" font-size="6" text-anchor="middle" fill="#fff" opacity=".8">TOP</text>',
 mk=function(x,y,t){return '<circle cx="'+x+'" cy="'+y+'" r="9" fill="#f97316" stroke="#fff" stroke-width="1.5"/><text x="'+x+'" y="'+(y+2.5)+'" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">'+t+'</text>'};
 ICON.fl=S0+TV+mk(34,9,'FL')+'</svg>';ICON.fr=S0+TV+mk(66,9,'FR')+'</svg>';ICON.rl=S0+TV+mk(34,51,'RL')+'</svg>';ICON.rr=S0+TV+mk(66,51,'RR')+'</svg>';
-SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});DOC.forEach(function(s){card("docs",D.doc,s[0],s[1],"📄",1)});
+
+SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});
+
+// DOCS: Form 22 has crop, Chassis Print is RAW photo (NO FILTER)
+card("docs", D.doc, "f22", "Form 22", "📄", 1);
+card("docs", D.doc, "pen", "Chassis Print", "📋", 0);
+
 function gal(id,arr,edit){var c=$(id);c.innerHTML="";arr.forEach(function(u,i){var t=document.createElement("div");t.className="th";t.innerHTML='<img src="'+u+'"><button class="x">✕</button>'+(edit?'<button class="e">Edit</button>':'');
 t.querySelector(".x").onclick=function(){arr.splice(i,1);if(edit)D.ko.splice(i,1);gal(id,arr,edit)};if(edit)t.querySelector(".e").onclick=function(){ei=i;openC(D.ko[i]||u)};c.appendChild(t)})}
 function addP(u){D.add.push(u);gal("ga",D.add,0)}
@@ -549,7 +597,7 @@ try{if("BarcodeDetector" in window){var r=await new BarcodeDetector({formats:["c
 if(!out&&window.ZXing){try{var x=await new ZXing.BrowserMultiFormatReader().decodeFromCanvas(c);if(x)out=x.getText()}catch(e){}}}
 return out.replace(/[^A-Z0-9]/gi,"").toUpperCase()}
 
-// WHITE DOCUMENT EDGE SCAN DETECTION
+// ACCURATE WHITE DOCUMENT EDGE SCAN DETECTION
 function box(im){
     var cv = document.createElement("canvas"), W = 240, H = Math.round(im.naturalHeight * W / im.naturalWidth);
     cv.width = W; cv.height = H;
@@ -564,7 +612,6 @@ function box(im){
 
     var x0 = 0, x1 = W - 1, y0 = 0, y1 = H - 1;
 
-    // Left Edge
     for(var x = 4; x < W * 0.45; x++){
         var whiteCount = 0;
         for(var y = Math.round(H * 0.2); y < H * 0.8; y += 2){
@@ -573,7 +620,6 @@ function box(im){
         if(whiteCount / (H * 0.3) > 0.55){ x0 = Math.max(0, x - 2); break; }
     }
 
-    // Right Edge
     for(var x = W - 5; x > W * 0.55; x--){
         var whiteCount = 0;
         for(var y = Math.round(H * 0.2); y < H * 0.8; y += 2){
@@ -582,20 +628,18 @@ function box(im){
         if(whiteCount / (H * 0.3) > 0.55){ x1 = Math.min(W - 1, x + 2); break; }
     }
 
-    // Top Edge
     for(var y = 4; y < H * 0.45; y++){
         var whiteCount = 0;
-        for(var x = Math.round(W * 0.2); x < W * 0.8; x += 2){
-            if(getLum(x, y) > 135) whiteCount++;
+        for(var y2 = Math.round(W * 0.2); y2 < W * 0.8; y2 += 2){
+            if(getLum(y2, y) > 135) whiteCount++;
         }
         if(whiteCount / (W * 0.3) > 0.55){ y0 = Math.max(0, y - 2); break; }
     }
 
-    // Bottom Edge
     for(var y = H - 5; y > H * 0.55; y--){
         var whiteCount = 0;
-        for(var x = Math.round(W * 0.2); x < W * 0.8; x += 2){
-            if(getLum(x, y) > 135) whiteCount++;
+        for(var y2 = Math.round(W * 0.2); y2 < W * 0.8; y2 += 2){
+            if(getLum(y2, y) > 135) whiteCount++;
         }
         if(whiteCount / (W * 0.3) > 0.55){ y1 = Math.min(H - 1, y + 2); break; }
     }
@@ -654,7 +698,6 @@ function auto(){
 function closeC(goBack){
     if(cr){cr.destroy();cr=null;}
     var i=$("ci");
-    if(i.src.startsWith("blob:")) URL.revokeObjectURL(i.src);
     i.src="";
     $("cm").style.display="none";
     if(goBack && history.state && history.state.modal === "scanner"){
@@ -662,12 +705,12 @@ function closeC(goBack){
     }
 }
 
-// 2400px HIGH CLARITY (CRISP PRINT SCANNER QUALITY)
+// 1800px CRISP RESOLUTION (BALANCED FOR CLARITY AND ZERO-CRASH)
 function doneC(){
     if(!cr)return;
     var canvas = cr.getCroppedCanvas({
-        maxWidth: 2400,
-        maxHeight: 2400,
+        maxWidth: 1800,
+        maxHeight: 1800,
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high'
     });
@@ -697,13 +740,20 @@ function img(p,u,x,y,w,h,l,isChecklist){
 
 function build(){
     var ch=$("C").value.toUpperCase().trim(),m=$("M").value.trim();
+    var insp = $("inspName").value.trim() || "Yard Team";
     if(!ch||!m){alert("Please enter Chassis Number and Vehicle Model before generating PDF.");return null}
     var n=new Date(),p=new window.jspdf.jsPDF("p","mm","a4");
-    hd(p,"PDI REPORT");p.setTextColor(15,23,42);p.setFontSize(10);p.setFillColor(241,245,249);p.roundedRect(14,28,182,30,2,2,"F");
-    [["Chassis Number:",ch],["Vehicle Model:",m],["Inspection Date:",n.toLocaleDateString("en-GB")+" "+n.toLocaleTimeString("en-IN")]].forEach(function(r,i){p.setFont(undefined,"bold");p.text(r[0],18,36+i*8);p.setFont(undefined,"normal");p.text(r[1],54,36+i*8)});
-    p.setFont(undefined,"bold");p.setFontSize(11);p.setTextColor(2,132,199);p.text("Vehicle Photos",14,66);
+    hd(p,"PDI REPORT");p.setTextColor(15,23,42);p.setFontSize(10);p.setFillColor(241,245,249);p.roundedRect(14,28,182,32,2,2,"F");
+    [
+        ["Chassis Number:",ch],
+        ["Vehicle Model:",m],
+        ["Inspector / Technician:", insp],
+        ["Inspection Date:",n.toLocaleDateString("en-GB")+" "+n.toLocaleTimeString("en-IN")]
+    ].forEach(function(r,i){p.setFont(undefined,"bold");p.text(r[0],18,35+i*7);p.setFont(undefined,"normal");p.text(r[1],68,35+i*7)});
+    
+    p.setFont(undefined,"bold");p.setFontSize(11);p.setTextColor(2,132,199);p.text("Vehicle Photos",14,68);
     var L=SIX.map(function(s,i){return[D.six[s[0]],(i+1)+". "+s[1]]}).concat(D.add.map(function(u,i){return[u,"Additional Photo "+(i+1)]}));
-    L.forEach(function(it,i){var x=14+(i%3)*62,y;if(i<12)y=72+Math.floor(i/3)*50;else{var j=i-12;if(j%15==0){p.addPage();hd(p,"PDI REPORT",20)}y=36+Math.floor((j%15)/3)*50}img(p,it[0],x,y,58,42,it[1],false)});
+    L.forEach(function(it,i){var x=14+(i%3)*62,y;if(i<12)y=74+Math.floor(i/3)*50;else{var j=i-12;if(j%15==0){p.addPage();hd(p,"PDI REPORT",20)}y=36+Math.floor((j%15)/3)*50}img(p,it[0],x,y,58,42,it[1],false)});
 
     if(D.sticker||D.doc.f22||D.doc.pen||D.battery){
         p.addPage();hd(p,"PDI REPORT");p.setFontSize(11);p.setTextColor(2,132,199);p.text("2. Documents & Battery Inspection: "+ch,14,34);
@@ -714,7 +764,7 @@ function build(){
     }
 
     D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"",true)});
-    return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",ch:ch,m:m};
+    return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",ch:ch,m:m,insp:insp};
 }
 
 let isExporting = false;
@@ -732,7 +782,7 @@ async function out(share){
     try {
         var blob=b.p.output("blob"),f=new File([blob],b.f,{type:"application/pdf"});
 
-        uploadDirectly(b.ch, b.m, blob, b.f);
+        uploadDirectly(b.ch, b.m, b.insp, blob, b.f);
 
         if(share){
             try{
@@ -759,12 +809,20 @@ async function out(share){
 </script>
 
 <script>
-// CLEAN SINGLE-REGISTRATION (NO RELOAD LOOP)
+// AUTO-UPDATE SERVICE WORKER
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
       .then(reg => {
         reg.update();
+        reg.onupdatefound = () => {
+          const installingWorker = reg.installing;
+          installingWorker.onstatechange = () => {
+            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              window.location.reload();
+            }
+          };
+        };
       })
       .catch(err => console.error('PWA registration error', err));
   });
