@@ -113,7 +113,10 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <input type="text" id="C" placeholder="e.g. MAT853036TWHX0267" style="text-transform:uppercase">
 
 <div class="box"><label>Inspector / Technician Name</label>
-<select id="inspSelect" onchange="onInspChange()"><option value="">-- Choose Inspector --</option></select>
+<div class="row" style="margin-bottom:8px">
+    <select id="inspSelect" onchange="onInspChange()" style="margin:0"><option value="">-- Choose Inspector --</option></select>
+    <button style="background:#ef4444;white-space:nowrap;padding:10px 12px" onclick="removeInspector()">🗑️ Remove</button>
+</div>
 <div class="row" style="margin:-2px 0 10px"><input type="text" id="newInspInput" placeholder="Add new inspector" style="margin:0"><button onclick="addInspector()">＋ Add</button></div>
 <input type="text" id="inspName" placeholder="Inspector Name" style="margin:0"></div>
 
@@ -180,7 +183,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v16", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v17", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -407,10 +410,14 @@ function smartCompress(fileOrBase64, maxDim=1200, quality=0.65) {
 var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
 var selectedFilter = 'enhance';
 
-// INSPECTOR PERSISTENCE LOGIC
-var DEFAULT_INSPECTORS = ["Yard Team", "Rahul", "Jishnu", "Akhil", "Vipin"];
+// INSPECTOR ADD & REMOVE LOCALSTORAGE LOGIC
+var DEFAULT_INSPECTORS = ["Yard Team"];
 var savedInspectors = [];
-try { savedInspectors = JSON.parse(localStorage.getItem("yardInspectors") || "[]"); } catch(e){}
+try { 
+    var localData = localStorage.getItem("yardInspectors");
+    savedInspectors = localData ? JSON.parse(localData) : []; 
+} catch(e){}
+
 var INSPECTOR_LIST = Array.from(new Set(DEFAULT_INSPECTORS.concat(savedInspectors)));
 
 function renderInspectors() {
@@ -431,13 +438,32 @@ function addInspector() {
     if(!n) return;
     if(INSPECTOR_LIST.indexOf(n) === -1) {
         INSPECTOR_LIST.push(n);
-        savedInspectors.push(n);
+        if(savedInspectors.indexOf(n) === -1) savedInspectors.push(n);
         try { localStorage.setItem("yardInspectors", JSON.stringify(savedInspectors)); } catch(e){}
     }
     renderInspectors();
     $("inspSelect").value = n;
     $("inspName").value = n;
     $("newInspInput").value = "";
+}
+
+function removeInspector() {
+    var current = $("inspSelect").value;
+    if(!current) {
+        alert("Please choose an inspector from the dropdown to remove.");
+        return;
+    }
+    if(current === "Yard Team") {
+        alert("Cannot remove default 'Yard Team'.");
+        return;
+    }
+    if(confirm("Remove inspector '" + current + "' from list?")) {
+        INSPECTOR_LIST = INSPECTOR_LIST.filter(function(x){ return x !== current; });
+        savedInspectors = savedInspectors.filter(function(x){ return x !== current; });
+        try { localStorage.setItem("yardInspectors", JSON.stringify(savedInspectors)); } catch(e){}
+        renderInspectors();
+        $("inspName").value = "";
+    }
 }
 
 var CAT={"Nexon":["Smart","Smart+","Smart+ S","Pure","Pure S","Creative","Creative+","Creative+ S","Fearless","Fearless S","Fearless+ S","Fearless+ S Dark"],
@@ -576,7 +602,7 @@ ICON.fl=S0+TV+mk(34,9,'FL')+'</svg>';ICON.fr=S0+TV+mk(66,9,'FR')+'</svg>';ICON.r
 
 SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});
 
-// DOCS: Form 22 has crop, Chassis Print is RAW photo (NO FILTER)
+// Form 22 has crop, Chassis Print is RAW photo (NO FILTER)
 card("docs", D.doc, "f22", "Form 22", "📄", 1);
 card("docs", D.doc, "pen", "Chassis Print", "📋", 0);
 
