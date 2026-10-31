@@ -183,7 +183,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v17", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v18", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -410,15 +410,14 @@ function smartCompress(fileOrBase64, maxDim=1200, quality=0.65) {
 var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
 var selectedFilter = 'enhance';
 
-// INSPECTOR ADD & REMOVE LOCALSTORAGE LOGIC
-var DEFAULT_INSPECTORS = ["Yard Team"];
+// INSPECTOR ADD & REMOVE (NO DEFAULT YARD TEAM)
 var savedInspectors = [];
 try { 
     var localData = localStorage.getItem("yardInspectors");
     savedInspectors = localData ? JSON.parse(localData) : []; 
 } catch(e){}
 
-var INSPECTOR_LIST = Array.from(new Set(DEFAULT_INSPECTORS.concat(savedInspectors)));
+var INSPECTOR_LIST = savedInspectors.slice();
 
 function renderInspectors() {
     var sel = $("inspSelect");
@@ -438,7 +437,7 @@ function addInspector() {
     if(!n) return;
     if(INSPECTOR_LIST.indexOf(n) === -1) {
         INSPECTOR_LIST.push(n);
-        if(savedInspectors.indexOf(n) === -1) savedInspectors.push(n);
+        savedInspectors.push(n);
         try { localStorage.setItem("yardInspectors", JSON.stringify(savedInspectors)); } catch(e){}
     }
     renderInspectors();
@@ -451,10 +450,6 @@ function removeInspector() {
     var current = $("inspSelect").value;
     if(!current) {
         alert("Please choose an inspector from the dropdown to remove.");
-        return;
-    }
-    if(current === "Yard Team") {
-        alert("Cannot remove default 'Yard Team'.");
         return;
     }
     if(confirm("Remove inspector '" + current + "' from list?")) {
@@ -766,7 +761,8 @@ function img(p,u,x,y,w,h,l,isChecklist){
 
 function build(){
     var ch=$("C").value.toUpperCase().trim(),m=$("M").value.trim();
-    var insp = $("inspName").value.trim() || "Yard Team";
+    var insp = $("inspName").value.trim();
+    if(!insp){alert("Please select or enter Inspector Name.");return null}
     if(!ch||!m){alert("Please enter Chassis Number and Vehicle Model before generating PDF.");return null}
     var n=new Date(),p=new window.jspdf.jsPDF("p","mm","a4");
     hd(p,"PDI REPORT");p.setTextColor(15,23,42);p.setFontSize(10);p.setFillColor(241,245,249);p.roundedRect(14,28,182,32,2,2,"F");
