@@ -1,5 +1,5 @@
-// AUTO-UPDATING NETWORK-FIRST SERVICE WORKER (VERSION 24)
-const CACHE_NAME = 'pdi-pro-cache-v24';
+// AUTO-UPDATING NETWORK-FIRST SERVICE WORKER (VERSION 25)
+const CACHE_NAME = 'pdi-pro-cache-v25';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
@@ -23,7 +23,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
 
-  // External APIs (Telegram, Google Script) bypass
+  // External APIs bypass
   const url = new URL(e.request.url);
   if (url.origin.includes('telegram.org') || url.origin.includes('google.com') || url.origin.includes('script.google')) {
     return;
