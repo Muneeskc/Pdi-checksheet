@@ -1,5 +1,5 @@
 // AUTO-UPDATING NETWORK-FIRST SERVICE WORKER
-const CACHE_NAME = 'pdi-pro-cache-v20';
+const CACHE_NAME = 'pdi-pro-cache-v21';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
