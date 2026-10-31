@@ -183,7 +183,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v20", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v21", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -484,12 +484,11 @@ function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
 function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
 function onM(){$("M").value=$("ms").value}
 
-// RAM ALLOCATOR PRECAUTION (RESTRICT OS BLOW-UP)
+// ZERO-CRASH SELECTOR: OS HEAVY CAMERA PROCESS BYPASS
 function pick(cam,cb,multi,isCk){
     var i=document.createElement("input");
     i.type="file";
-    i.accept="image/jpeg,image/png";
-    if(cam) i.setAttribute("capture","environment");
+    i.accept="image/*";
     if(multi) i.multiple=true;
     i.onchange=async function(){
         if(!i.files || i.files.length === 0) return;
@@ -501,13 +500,13 @@ function pick(cam,cb,multi,isCk){
     i.click();
 }
 
-// 1500px SAFE LIMIT FOR LOW-MEMORY DEVICES
+// 1400px ULTRA-SAFE FOR 3GB/4GB RAM PHONES
 async function rd(f,cb,isCk){
     if(isCk){
-        let scaled = await smartCompress(f, 1500, 0.88);
+        let scaled = await smartCompress(f, 1400, 0.88);
         cb(scaled);
     } else {
-        let compactImage = await smartCompress(f, 1100, 0.65);
+        let compactImage = await smartCompress(f, 1000, 0.65);
         cb(compactImage);
     }
 }
@@ -729,19 +728,19 @@ function closeC(goBack){
     }
 }
 
-// 1500px SAFE CANVAS CROP (MEMORY-SAFE & CLEAR)
+// 1400px HIGH CLARITY & RAM SAFE CROPPING
 function doneC(){
     if(!cr)return;
     var canvas = cr.getCroppedCanvas({
-        maxWidth: 1500,
-        maxHeight: 1500,
+        maxWidth: 1400,
+        maxHeight: 1400,
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'medium'
     });
     var u = processCanvasFilter(canvas, selectedFilter);
     var o = $("ci").src;
     
-    // Release canvas context memory immediately
+    // Explicitly destroy canvas allocation
     canvas.width = 1;
     canvas.height = 1;
     
