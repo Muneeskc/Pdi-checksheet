@@ -70,9 +70,9 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
 /* REALISTIC LIVE DOCUMENT FILTERS */
 #cm.flt-original .cropper-view-box img, #cm.flt-original .cropper-canvas img { filter: none !important; }
-#cm.flt-enhance .cropper-view-box img, #cm.flt-enhance .cropper-canvas img { filter: contrast(1.25) brightness(1.08) saturate(1.15) !important; }
-#cm.flt-grayscale .cropper-view-box img, #cm.flt-grayscale .cropper-canvas img { filter: grayscale(100%) contrast(1.2) brightness(1.05) !important; }
-#cm.flt-bw .cropper-view-box img, #cm.flt-bw .cropper-canvas img { filter: grayscale(100%) contrast(2.2) brightness(1.15) !important; }
+#cm.flt-enhance .cropper-view-box img, #cm.flt-enhance .cropper-canvas img { filter: contrast(1.2) brightness(1.05) !important; }
+#cm.flt-grayscale .cropper-view-box img, #cm.flt-grayscale .cropper-canvas img { filter: grayscale(100%) contrast(1.15) !important; }
+#cm.flt-bw .cropper-view-box img, #cm.flt-bw .cropper-canvas img { filter: grayscale(100%) contrast(1.8) !important; }
 
 /* Cropper Core CSS */
 .cropper-container{direction:ltr;font-size:0;line-height:0;position:relative;touch-action:none;user-select:none}
@@ -156,8 +156,8 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     <div class="cf">
         <div style="text-align:center;font-size:12px;color:var(--mu);font-weight:bold;">Enhance Filter:</div>
         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
-            <button type="button" class="filter-btn" id="f-orig" onclick="setFilter('original')">Original</button>
-            <button type="button" class="filter-btn active" id="f-magic" onclick="setFilter('enhance')">⚡ Magic Color</button>
+            <button type="button" class="filter-btn active" id="f-orig" onclick="setFilter('original')">Original (No Filter)</button>
+            <button type="button" class="filter-btn" id="f-magic" onclick="setFilter('enhance')">⚡ Magic Color</button>
             <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
             <button type="button" class="filter-btn" id="f-bw" onclick="setFilter('bw')">Pure White (Scan)</button>
         </div>
@@ -183,7 +183,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v24", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v25", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -365,8 +365,8 @@ async function uploadDirectly(chassis, model, inspector, blob, fileName) {
     }
 }
 
-// RAM-OPTIMIZED CANVAS RESIZER (IMMEDIATELY RELEASES HEAVY MEMORY)
-function smartCompress(fileOrBase64, maxDim=1100, quality=0.65) {
+// SMART COMPRESS WITH RESOURCE CLEANUP
+function smartCompress(fileOrBase64, maxDim=1200, quality=0.75) {
     return new Promise((resolve) => {
         let img = new Image();
         let isBlob = typeof fileOrBase64 !== 'string';
@@ -389,12 +389,11 @@ function smartCompress(fileOrBase64, maxDim=1100, quality=0.65) {
                 cv.width = w; cv.height = h;
                 const ctx = cv.getContext('2d', { alpha: false });
                 ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'medium';
+                ctx.imageSmoothingQuality = 'high';
                 ctx.drawImage(img, 0, 0, w, h);
                 if (isBlob) URL.revokeObjectURL(src);
                 let out = cv.toDataURL('image/jpeg', quality);
-                // Zero canvas memory release
-                cv.width = 1; cv.height = 1;
+                cv.width = 1; cv.height = 1; // Free RAM
                 resolve(out);
             } catch(e) {
                 if (isBlob) URL.revokeObjectURL(src);
@@ -411,7 +410,7 @@ function smartCompress(fileOrBase64, maxDim=1100, quality=0.65) {
 
 // ================= APP ORIGINAL LOGIC =================
 var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
-var selectedFilter = 'enhance';
+var selectedFilter = 'original'; // DEFAULT TO ORIGINAL TO PREVENT BLACK PATCHES
 
 // INSPECTOR ADD & REMOVE (NO DEFAULT YARD TEAM)
 var savedInspectors = [];
@@ -487,13 +486,12 @@ function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
 function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
 function onM(){$("M").value=$("ms").value}
 
-// DIRECT CAMERA & GALLERY ROUTING (NO MISMATCH)
+// DIRECT CAMERA & GALLERY ROUTING
 function pick(cam, cb, multi, isCk){
     var i = document.createElement("input");
     i.type = "file";
     i.accept = "image/*";
     
-    // Direct Camera trigger
     if(cam){
         i.setAttribute("capture", "environment");
     }
@@ -510,13 +508,13 @@ function pick(cam, cb, multi, isCk){
     i.click();
 }
 
-// 1400px SAFE LIMIT (PREVENTS SYSTEM LOW-MEMORY CRASH)
+// CHECKLIST 2000px HD PIPELINE (SHARP AND ULTRA-CLEAR TEXT)
 async function rd(f,cb,isCk){
     if(isCk){
-        let scaled = await smartCompress(f, 1400, 0.88);
+        let scaled = await smartCompress(f, 2000, 0.95);
         cb(scaled);
     } else {
-        let compactImage = await smartCompress(f, 1000, 0.65);
+        let compactImage = await smartCompress(f, 1100, 0.70);
         cb(compactImage);
     }
 }
@@ -541,9 +539,9 @@ function setFilter(mode){
     modal.className = 'flt-' + mode;
 }
 
-// NATURAL DOCUMENT SCANNER FILTER (BALANCED TEXT & PAPER)
+// DOCUMENT FILTER ENGINE
 function processCanvasFilter(cv, mode){
-    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.90);
+    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.95);
     
     var ctx = cv.getContext("2d");
     var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
@@ -554,29 +552,20 @@ function processCanvasFilter(cv, mode){
         var lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
         if(mode === 'enhance'){
-            // Magic Color: Text stays clean & dark, paper brightens naturally without washing out
-            if(lum < 110) {
-                d[i]   = Math.max(0, r * 0.60);
-                d[i+1] = Math.max(0, g * 0.60);
-                d[i+2] = Math.max(0, b * 0.60);
-            } else {
-                d[i]   = Math.min(255, r * 1.15 + 25);
-                d[i+1] = Math.min(255, g * 1.15 + 25);
-                d[i+2] = Math.min(255, b * 1.15 + 25);
-            }
+            // Soft contrast boost without turning shadows into dark black
+            d[i]   = Math.min(255, Math.max(0, (r - 128) * 1.15 + 128 + 10));
+            d[i+1] = Math.min(255, Math.max(0, (g - 128) * 1.15 + 128 + 10));
+            d[i+2] = Math.min(255, Math.max(0, (b - 128) * 1.15 + 128 + 10));
         } else if(mode === 'grayscale'){
-            var gray = lum;
-            if(gray < 110) gray = Math.max(0, gray * 0.65);
-            else gray = Math.min(255, gray * 1.15 + 20);
+            var gray = Math.min(255, Math.max(0, (lum - 128) * 1.15 + 128 + 5));
             d[i] = gray; d[i+1] = gray; d[i+2] = gray;
         } else if(mode === 'bw'){
-            // Pure White Scan: Text black, paper pure white
-            var val = lum > 128 ? 255 : 0;
+            var val = lum > 120 ? 255 : 0;
             d[i] = val; d[i+1] = val; d[i+2] = val;
         }
     }
     ctx.putImageData(imgData, 0, 0);
-    return cv.toDataURL("image/jpeg", 0.90);
+    return cv.toDataURL("image/jpeg", 0.95);
 }
 
 var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]];
@@ -645,7 +634,6 @@ function box(im){
 
     var x0 = 0, x1 = W - 1, y0 = 0, y1 = H - 1;
 
-    // Left Edge
     for(var x = 4; x < W * 0.45; x++){
         var whiteCount = 0;
         for(var y = Math.round(H * 0.2); y < H * 0.8; y += 2){
@@ -654,7 +642,6 @@ function box(im){
         if(whiteCount / (H * 0.3) > 0.55){ x0 = Math.max(0, x - 2); break; }
     }
 
-    // Right Edge
     for(var x = W - 5; x > W * 0.55; x--){
         var whiteCount = 0;
         for(var y = Math.round(H * 0.2); y < H * 0.8; y += 2){
@@ -663,7 +650,6 @@ function box(im){
         if(whiteCount / (H * 0.3) > 0.55){ x1 = Math.min(W - 1, x + 2); break; }
     }
 
-    // Top Edge (Fixed iterator)
     for(var y = 4; y < H * 0.45; y++){
         var whiteCount = 0;
         for(var x = Math.round(W * 0.2); x < W * 0.8; x += 2){
@@ -672,7 +658,6 @@ function box(im){
         if(whiteCount / (W * 0.3) > 0.55){ y0 = Math.max(0, y - 2); break; }
     }
 
-    // Bottom Edge (Fixed iterator)
     for(var y = H - 5; y > H * 0.55; y--){
         var whiteCount = 0;
         for(var x = Math.round(W * 0.2); x < W * 0.8; x += 2){
@@ -681,7 +666,6 @@ function box(im){
         if(whiteCount / (W * 0.3) > 0.55){ y1 = Math.min(H - 1, y + 2); break; }
     }
 
-    // Free edge detection memory
     cv.width = 1; cv.height = 1;
 
     var sx = im.naturalWidth / W, sy = im.naturalHeight / H;
@@ -710,7 +694,7 @@ window.addEventListener('popstate', function(e){
 
 function openC(u){
     var i=$("ci");
-    setFilter('enhance');
+    setFilter('original'); // OPEN WITH ORIGINAL DIRECTLY
     $("cm").style.display="flex";
     
     history.pushState({modal: "scanner"}, "");
@@ -745,14 +729,14 @@ function closeC(goBack){
     }
 }
 
-// 1400px HIGH CLARITY & RAM SAFE CROPPING
+// 2000px HD RETINA QUALITY CROPPING
 function doneC(){
     if(!cr)return;
     var canvas = cr.getCroppedCanvas({
-        maxWidth: 1400,
-        maxHeight: 1400,
+        maxWidth: 2000,
+        maxHeight: 2000,
         imageSmoothingEnabled: true,
-        imageSmoothingQuality: 'medium'
+        imageSmoothingQuality: 'high'
     });
     var u = processCanvasFilter(canvas, selectedFilter);
     var o = $("ci").src;
