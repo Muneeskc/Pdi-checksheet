@@ -183,7 +183,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v21", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v22", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -484,13 +484,20 @@ function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
 function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
 function onM(){$("M").value=$("ms").value}
 
-// ZERO-CRASH SELECTOR: OS HEAVY CAMERA PROCESS BYPASS
-function pick(cam,cb,multi,isCk){
-    var i=document.createElement("input");
-    i.type="file";
-    i.accept="image/*";
-    if(multi) i.multiple=true;
-    i.onchange=async function(){
+// DIRECT CAMERA & GALLERY ROUTING (NO MISMATCH)
+function pick(cam, cb, multi, isCk){
+    var i = document.createElement("input");
+    i.type = "file";
+    i.accept = "image/*";
+    
+    // Direct Camera trigger on demand
+    if(cam){
+        i.setAttribute("capture", "environment");
+    }
+    
+    if(multi) i.multiple = true;
+    
+    i.onchange = async function(){
         if(!i.files || i.files.length === 0) return;
         for (let f of Array.from(i.files)) {
             await rd(f, cb, isCk);
@@ -500,7 +507,7 @@ function pick(cam,cb,multi,isCk){
     i.click();
 }
 
-// 1400px ULTRA-SAFE FOR 3GB/4GB RAM PHONES
+// 1400px SAFE LIMIT (PREVENTS SYSTEM LOW-MEMORY CRASH)
 async function rd(f,cb,isCk){
     if(isCk){
         let scaled = await smartCompress(f, 1400, 0.88);
@@ -740,7 +747,7 @@ function doneC(){
     var u = processCanvasFilter(canvas, selectedFilter);
     var o = $("ci").src;
     
-    // Explicitly destroy canvas allocation
+    // Explicitly destroy canvas allocation to release RAM
     canvas.width = 1;
     canvas.height = 1;
     
