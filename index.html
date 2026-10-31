@@ -70,9 +70,9 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
 /* REALISTIC LIVE DOCUMENT FILTERS */
 #cm.flt-original .cropper-view-box img, #cm.flt-original .cropper-canvas img { filter: none !important; }
-#cm.flt-enhance .cropper-view-box img, #cm.flt-enhance .cropper-canvas img { filter: contrast(1.25) brightness(1.1) saturate(1.15) !important; }
+#cm.flt-enhance .cropper-view-box img, #cm.flt-enhance .cropper-canvas img { filter: contrast(1.25) brightness(1.08) saturate(1.15) !important; }
 #cm.flt-grayscale .cropper-view-box img, #cm.flt-grayscale .cropper-canvas img { filter: grayscale(100%) contrast(1.2) brightness(1.05) !important; }
-#cm.flt-bw .cropper-view-box img, #cm.flt-bw .cropper-canvas img { filter: grayscale(100%) contrast(2.2) brightness(1.18) !important; }
+#cm.flt-bw .cropper-view-box img, #cm.flt-bw .cropper-canvas img { filter: grayscale(100%) contrast(2.2) brightness(1.15) !important; }
 
 /* Cropper Core CSS */
 .cropper-container{direction:ltr;font-size:0;line-height:0;position:relative;touch-action:none;user-select:none}
@@ -183,7 +183,7 @@ const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v18", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v19", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -529,7 +529,7 @@ function setFilter(mode){
     modal.className = 'flt-' + mode;
 }
 
-// ADAPTIVE SHADOW-REMOVAL FILTER (NO BLACK PATCHES IN LOW LIGHT)
+// NATURAL DOCUMENT SCANNER FILTER (BALANCED TEXT & PAPER)
 function processCanvasFilter(cv, mode){
     if(mode === 'original') return cv.toDataURL("image/jpeg", 0.90);
     
@@ -539,27 +539,27 @@ function processCanvasFilter(cv, mode){
 
     for (var i = 0; i < d.length; i += 4) {
         var r = d[i], g = d[i+1], b = d[i+2];
+        var lum = 0.299 * r + 0.587 * g + 0.114 * b;
 
         if(mode === 'enhance'){
-            var lum = 0.299 * r + 0.587 * g + 0.114 * b;
-            if(lum > 95) {
-                var gain = 255 / Math.max(120, lum);
-                d[i]   = Math.min(255, r * gain * 1.05 + 15);
-                d[i+1] = Math.min(255, g * gain * 1.05 + 15);
-                d[i+2] = Math.min(255, b * gain * 1.05 + 15);
+            // Magic Color: Text stays clean & dark, paper brightens naturally without washing out
+            if(lum < 110) {
+                d[i]   = Math.max(0, r * 0.60);
+                d[i+1] = Math.max(0, g * 0.60);
+                d[i+2] = Math.max(0, b * 0.60);
             } else {
-                d[i]   = Math.max(0, r * 0.70);
-                d[i+1] = Math.max(0, g * 0.70);
-                d[i+2] = Math.max(0, b * 0.70);
+                d[i]   = Math.min(255, r * 1.15 + 25);
+                d[i+1] = Math.min(255, g * 1.15 + 25);
+                d[i+2] = Math.min(255, b * 1.15 + 25);
             }
         } else if(mode === 'grayscale'){
-            var gray = 0.299 * r + 0.587 * g + 0.114 * b;
-            if(gray > 105) gray = Math.min(255, gray * 1.25 + 20);
-            else gray = Math.max(0, gray * 0.75);
+            var gray = lum;
+            if(gray < 110) gray = Math.max(0, gray * 0.65);
+            else gray = Math.min(255, gray * 1.15 + 20);
             d[i] = gray; d[i+1] = gray; d[i+2] = gray;
         } else if(mode === 'bw'){
-            var gray2 = 0.299 * r + 0.587 * g + 0.114 * b;
-            var val = gray2 > 105 ? 255 : 0;
+            // Pure White Scan: Text black, paper pure white
+            var val = lum > 128 ? 255 : 0;
             d[i] = val; d[i+1] = val; d[i+2] = val;
         }
     }
