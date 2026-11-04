@@ -1,5 +1,5 @@
-// AUTO-UPDATING NETWORK-FIRST SERVICE WORKER (VERSION 26)
-const CACHE_NAME = 'pdi-pro-cache-v26';
+// AUTO-UPDATING NETWORK-FIRST SERVICE WORKER (VERSION 27)
+const CACHE_NAME = 'pdi-pro-cache-v27';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
@@ -19,11 +19,8 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Safe Network-First Strategy
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
-
-  // External APIs bypass
   const url = new URL(e.request.url);
   if (url.origin.includes('telegram.org') || url.origin.includes('google.com') || url.origin.includes('script.google')) {
     return;
