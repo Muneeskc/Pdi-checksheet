@@ -210,7 +210,6 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// പുതുതായി നൽകിയ വെബ് ആപ്പ് ലിങ്ക് ഇവിടെ കൃത്യമായി ചേർത്തിരിക്കുന്നു
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUIp2DcWIiapVjQDStYoxnprBHwOOh_DbzUsOwMpDkvQqbLjJVUyaaMBZSUNYXpCqa/exec";
 
 // TAB SWITCHING
@@ -275,7 +274,7 @@ function filterReports() {
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v32", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v33", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
