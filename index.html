@@ -175,8 +175,8 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <!-- TAB 2: PDI REPORTS -->
 <div id="tabReports" style="display:none;">
     <div class="box">
-        <label>🔍 Search Chassis Number</label>
-        <input type="text" id="reportSearchInput" placeholder="Type chassis or last digits..." oninput="filterReports()" style="margin:0">
+        <label>🔍 Search Reports (Chassis / Model / Inspector / Remarks)</label>
+        <input type="text" id="reportSearchInput" placeholder="Type to search..." oninput="filterReports()" style="margin:0">
     </div>
     <div id="reportsContainer" style="max-height: 70vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
         <p style="text-align:center; color:var(--mu);">Loading reports...</p>
@@ -262,7 +262,7 @@ function renderReportCards(list) {
     `).join('');
 }
 
-// FIXED FILTER REPORTS FUNCTION
+// FULLY FIXED SEARCH FILTER FUNCTION
 function filterReports() {
     let q = $("reportSearchInput").value.toUpperCase().trim();
     if(!q) {
@@ -270,10 +270,12 @@ function filterReports() {
         return;
     }
     let filtered = allReportsData.filter(r => {
-        let chassis = (r.chassisNo || "").toUpperCase();
-        let model = (r.model || "").toUpperCase();
-        let inspector = (r.inspector || "").toUpperCase();
-        return chassis.includes(q) || model.includes(q) || inspector.includes(q);
+        let chassis = (r.chassisNo || "").toString().toUpperCase();
+        let model = (r.model || "").toString().toUpperCase();
+        let inspector = (r.inspector || "").toString().toUpperCase();
+        let remarks = (r.remarks || "").toString().toUpperCase();
+        
+        return chassis.includes(q) || model.includes(q) || inspector.includes(q) || remarks.includes(q);
     });
     renderReportCards(filtered);
 }
