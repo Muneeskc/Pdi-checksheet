@@ -262,13 +262,19 @@ function renderReportCards(list) {
     `).join('');
 }
 
+// FIXED FILTER REPORTS FUNCTION
 function filterReports() {
     let q = $("reportSearchInput").value.toUpperCase().trim();
     if(!q) {
         renderReportCards(allReportsData);
         return;
     }
-    let filtered = allReportsData.filter(r => (r.chassisNo || "").toUpperCase().includes(q));
+    let filtered = allReportsData.filter(r => {
+        let chassis = (r.chassisNo || "").toUpperCase();
+        let model = (r.model || "").toUpperCase();
+        let inspector = (r.inspector || "").toUpperCase();
+        return chassis.includes(q) || model.includes(q) || inspector.includes(q);
+    });
     renderReportCards(filtered);
 }
 
