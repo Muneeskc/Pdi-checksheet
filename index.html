@@ -31,6 +31,9 @@ body{margin:0;background:var(--bg);color:var(--tx);padding:12px;display:flex;jus
 .app{width:100%;max-width:520px;background:var(--cd);border-radius:20px;padding:18px;border:1px solid var(--bd)}
 h1{font-size:20px;color:var(--ac);text-align:center;margin:0}.sub{text-align:center;font-size:13px;color:var(--mu);margin:4px 0 16px}
 
+/* Small app-only credit; this element is not included in generated PDFs. */
+.app-footer{text-align:center;font-size:10px;letter-spacing:.3px;color:var(--mu);opacity:.8;margin:18px 0 2px}
+
 /* Tab Navigation */
 .tab-nav{display:flex;gap:8px;margin-bottom:16px;background:var(--in);padding:4px;border-radius:12px;border:1px solid var(--bd)}
 .tab-btn{flex:1;padding:10px;border-radius:8px;border:0;background:transparent;color:var(--mu);font-weight:700;font-size:13px;cursor:pointer}
@@ -110,7 +113,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </head>
 <body>
 <div class="app">
-<h1>Vehicle Inward &amp; Inspection Pro</h1><div class="sub">Tata Motors Yard Management System</div>
+<h1>Vehicle Inward &amp; Inspection Pro</h1>
 
 <!-- TAB NAVIGATION -->
 <div class="tab-nav">
@@ -125,7 +128,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     <div class="row"><button onclick="pick(1,sticker)">📷 Take Photo</button><button class="gl" onclick="pick(0,sticker)">🖼️ From Gallery</button></div>
     <div id="st"></div></div>
 
-    <div class="box"><label>1. Select Tata Model</label><select id="ms" onchange="onM()"><option value="">-- Choose Vehicle Model --</option></select>
+    <div class="box"><label>1. Select Vehicle Model</label><select id="ms" onchange="onM()"><option value="">-- Choose Vehicle Model --</option></select>
     <div class="row" style="margin:-2px 0 10px"><input type="text" id="nm" placeholder="New model name" style="margin:0"><button onclick="addM()">＋ Add</button></div>
     <input type="text" id="M" placeholder="Model" style="margin:0"></div>
 
@@ -183,6 +186,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     </div>
 </div>
 
+    <div class="app-footer">Designed by Munees KC</div>
 </div>
 
 <!-- CROPPER SCANNER MODAL -->
@@ -191,10 +195,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     <div class="cb"><img id="ci"></div>
     <div class="cf">
         <div style="text-align:center;font-size:12px;color:var(--mu);font-weight:bold;">Enhance Filter:</div>
-        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
-            <button type="button" class="filter-btn active" id="f-orig" onclick="setFilter('original')">Original (No Filter)</button>
-            <button type="button" class="filter-btn" id="f-magic" onclick="setFilter('enhance')">⚡ Magic Color</button>
-            <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
+        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">            <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
             <button type="button" class="filter-btn" id="f-bw" onclick="setFilter('bw')">Pure White (Scan)</button>
         </div>
         <div style="display:flex;gap:6px;justify-content:space-between;align-items:center;margin-top:6px;">
@@ -249,7 +250,7 @@ function renderReportCards(list) {
         container.innerHTML = '<p style="text-align:center; color:var(--mu);">No reports found.</p>';
         return;
     }
-    
+
     container.innerHTML = list.map(r => `
         <div class="report-card">
             <h4>🔢 ${r.chassisNo}</h4>
@@ -274,150 +275,284 @@ function filterReports() {
         let model = (r.model || "").toString().toUpperCase();
         let inspector = (r.inspector || "").toString().toUpperCase();
         let remarks = (r.remarks || "").toString().toUpperCase();
-        
+
         return chassis.includes(q) || model.includes(q) || inspector.includes(q) || remarks.includes(q);
     });
     renderReportCards(filtered);
 }
 
-// ================= STABLE BASE64 INDEXEDDB QUEUE =================
+// ================= INDEXEDDB: OFFLINE QUEUE + LIVE DRAFT =================
+// Version 2 keeps the existing pending_uploads store and adds inspection_draft.
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v33", 1);
+let dbReadyResolve;
+const dbReady = new Promise(resolve => { dbReadyResolve = resolve; });
+const reqDB = indexedDB.open("PDI_Clean_Queue_v33", 2);
 reqDB.onupgradeneeded = (e) => {
-    let d = e.target.result;
+    const d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
         d.createObjectStore("pending_uploads", { keyPath: "id", autoIncrement: true });
     }
+    if (!d.objectStoreNames.contains("inspection_draft")) {
+        d.createObjectStore("inspection_draft", { keyPath: "key" });
+    }
 };
-reqDB.onsuccess = (e) => {
+reqDB.onsuccess = async (e) => {
     db = e.target.result;
+    db.onversionchange = () => db.close();
+    dbReadyResolve(db);
+    try { await restoreDraft(); } catch (err) { console.error("Draft restore error:", err); }
     processPendingQueue();
 };
+reqDB.onerror = () => {
+    console.error("IndexedDB open failed:", reqDB.error);
+    dbReadyResolve(null);
+};
+reqDB.onblocked = () => console.warn("PDI database upgrade is blocked by another open tab.");
+
+function idbRequest(req) {
+    return new Promise((resolve, reject) => {
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error || new Error("IndexedDB request failed"));
+    });
+}
+function idbDone(tx) {
+    return new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error || new Error("IndexedDB transaction failed"));
+        tx.onabort = () => reject(tx.error || new Error("IndexedDB transaction aborted"));
+    });
+}
+
+let draftRevision = 0;
+let draftSaveChain = Promise.resolve();
+function collectDraft() {
+    const values = {};
+    document.querySelectorAll("#tabCheck input, #tabCheck select, #tabCheck textarea").forEach(el => {
+        if (el.id && el.type !== "file") values[el.id] = el.value;
+    });
+    return {
+        key: "current",
+        savedAt: Date.now(),
+        revision: draftRevision,
+        values,
+        data: JSON.parse(JSON.stringify(D))
+    };
+}
+async function saveDraftNow() {
+    await dbReady;
+    if (!db) throw new Error("Local storage is not ready. Please wait and try again.");
+    const snapshot = collectDraft();
+    const revision = ++draftRevision;
+    snapshot.revision = revision;
+    draftSaveChain = draftSaveChain.then(async () => {
+        const tx = db.transaction("inspection_draft", "readwrite");
+        tx.objectStore("inspection_draft").put(snapshot);
+        await idbDone(tx);
+    });
+    await draftSaveChain;
+    const msg = $("msg");
+    if (msg && msg.textContent.indexOf("Upload") < 0 && msg.textContent.indexOf("Delivered") < 0) {
+        msg.style.color = "#10b981";
+        msg.textContent = "✓ Draft saved on this phone";
+    }
+    return revision;
+}
+function scheduleDraftSave() {
+    saveDraftNow().catch(err => {
+        console.error("Auto-save failed:", err);
+        const msg = $("msg");
+        if (msg) { msg.style.color = "#ef4444"; msg.textContent = "⚠️ Local save failed. Keep this page open and check phone storage."; }
+    });
+}
+function resetInspectionUI() {
+    // Preserve D.six / D.doc object identities used by the photo-card callbacks.
+    Object.keys(D.six).forEach(k => delete D.six[k]);
+    Object.keys(D.doc).forEach(k => delete D.doc[k]);
+    D.add = []; D.ck = []; D.ko = []; D.sticker = null; D.battery = null;
+    document.querySelectorAll("#tabCheck input, #tabCheck select, #tabCheck textarea").forEach(el => {
+        if (el.type !== "file") el.value = "";
+    });
+    document.querySelectorAll(".card[data-host][data-key]").forEach(cardEl => {
+        const preview = cardEl.querySelector(".p");
+        if (preview && cardEl.dataset.placeholder) preview.innerHTML = cardEl.dataset.placeholder;
+    });
+    $("spv").textContent = "No Sticker Uploaded";
+    $("bpv").textContent = "No Battery Photo Uploaded";
+    $("st").textContent = "";
+    gal("ga", D.add, 0);
+    galChecklist("gc", D.ck);
+}
+async function completeQueuedUpload(queueId, revision) {
+    await dbReady;
+    if (!db || !queueId) throw new Error("Upload queue record is unavailable");
+    const tx = db.transaction(["pending_uploads", "inspection_draft"], "readwrite");
+    const queueStore = tx.objectStore("pending_uploads");
+    const draftStore = tx.objectStore("inspection_draft");
+    let clearedCurrentDraft = false;
+    const getDraft = draftStore.get("current");
+    getDraft.onsuccess = () => {
+        const current = getDraft.result;
+        if (current && Number(current.revision) === Number(revision)) {
+            draftStore.delete("current");
+            clearedCurrentDraft = true;
+        }
+    };        }
+        queueStore.delete(queueId);
+    };
+    getDraft.onerror = () => tx.abort();
+    await idbDone(tx);
+    if (clearedCurrentDraft) resetInspectionUI();
+    return clearedCurrentDraft;
+}
+async function restoreDraft() {
+    if (!db) return;
+    const tx = db.transaction("inspection_draft", "readonly");
+    const saved = await idbRequest(tx.objectStore("inspection_draft").get("current"));
+    if (!saved || !saved.data) return;
+    // Keep the original D.six and D.doc object identities because photo-card callbacks
+    // hold references to them. Replace their contents instead of replacing the objects.
+    Object.keys(D.six).forEach(k => delete D.six[k]);
+    Object.keys(D.doc).forEach(k => delete D.doc[k]);
+    Object.assign(D.six, saved.data.six || {});
+    Object.assign(D.doc, saved.data.doc || {});
+    D.add = saved.data.add || [];
+    D.ck = saved.data.ck || [];
+    D.ko = saved.data.ko || [];
+    D.sticker = saved.data.sticker || null;
+    D.battery = saved.data.battery || null;
+    draftRevision = Number(saved.revision || 0);
+    Object.keys(saved.values || {}).forEach(id => {
+        const el = $(id);
+        if (el) el.value = saved.values[id];
+    });
+    // Rebuild model and inspector selectors without overwriting restored text fields.
+    if ($("ms") && saved.values && saved.values.ms) $("ms").value = saved.values.ms;
+    if ($("inspSelect") && saved.values && saved.values.inspSelect) $("inspSelect").value = saved.values.inspSelect;
+    document.querySelectorAll(".card[data-host][data-key]").forEach(cardEl => {
+        const host = cardEl.dataset.host, key = cardEl.dataset.key;
+        const val = host === "six" ? D.six[key] : D.doc[key];
+        if (val) cardEl.querySelector(".p").innerHTML = '<img src="'+val+'">';
+    });
+    if (D.sticker) $("spv").innerHTML = '<img src="'+D.sticker+'">';
+    if (D.battery) $("bpv").innerHTML = '<img src="'+D.battery+'" style="width:100%;height:100%;object-fit:contain;">';
+    gal("ga", D.add || [], 0);
+    galChecklist("gc", D.ck || []);
+    const msg = $("msg");
+    if (msg) { msg.style.color = "#10b981"; msg.textContent = "✓ Previous inspection restored from this phone"; }
+}
 
 function blobToBase64(blob) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error("Could not prepare PDF"));
         reader.readAsDataURL(blob);
     });
 }
-
 function base64ToBlob(base64Data, type="application/pdf") {
-    const parts = base64Data.split(';base64,');
+    const parts = String(base64Data || "").split(';base64,');
+    if (parts.length < 2) throw new Error("Saved PDF data is invalid");
     const byteCharacters = atob(parts[1]);
     const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    return new Blob([byteArray], { type: type });
+    for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
+    return new Blob([new Uint8Array(byteNumbers)], { type });
 }
-
-function saveToQueue(item) {
-    return new Promise((resolve) => {
-        if (!db) { resolve(null); return; }
-        let tx = db.transaction("pending_uploads", "readwrite");
-        let req = tx.objectStore("pending_uploads").add(item);
-        req.onsuccess = (e) => resolve(e.target.result);
-        req.onerror = () => resolve(null);
-    });
+async function saveToQueue(item) {
+    await dbReady;
+    if (!db) throw new Error("Cannot save upload queue to phone storage");
+    const tx = db.transaction("pending_uploads", "readwrite");
+    const req = tx.objectStore("pending_uploads").add(item);
+    const id = await idbRequest(req);
+    await idbDone(tx);
+    return id;
 }
-
-function removeFromQueue(id) {
+async function removeFromQueue(id) {
+    await dbReady;
     if (!db || !id) return;
-    let tx = db.transaction("pending_uploads", "readwrite");
+    const tx = db.transaction("pending_uploads", "readwrite");
     tx.objectStore("pending_uploads").delete(id);
+    await idbDone(tx);
 }
 
 let isSyncing = false;
 async function processPendingQueue() {
+    await dbReady;
     if (isSyncing || !navigator.onLine || !db) return;
     isSyncing = true;
-
-    let tx = db.transaction("pending_uploads", "readonly");
-    let store = tx.objectStore("pending_uploads");
-    let getAllReq = store.getAll();
-
-    getAllReq.onsuccess = async () => {
-        let items = getAllReq.result;
-        if (items && items.length > 0) {
-            const msg = $("msg");
-            if (msg) {
-                msg.style.color = "#d97706";
-                msg.textContent = "⏳ Syncing " + items.length + " pending upload(s)...";
-            }
-
-            for (let it of items) {
-                try {
-                    let success = await sendToBackend(it.chassis, it.model, it.inspector, it.remarks, it.base64, it.fileName, it.dTime);
-                    if (success) {
-                        removeFromQueue(it.id);
-                        if (msg) {
-                            msg.style.color = "#10b981";
-                            msg.textContent = "✓ Report successfully delivered to Telegram & Sheet!";
-                            setTimeout(() => { msg.textContent = ""; }, 4000);
-                        }
-                    }
-                } catch(e) {
-                    console.error("Queue sync error:", e);
+    try {
+        const tx = db.transaction("pending_uploads", "readonly");
+        const items = await idbRequest(tx.objectStore("pending_uploads").getAll());
+        const msg = $("msg");
+        for (const it of (items || [])) {
+            if (!navigator.onLine) break;
+            try {
+                if (!it.base64) throw new Error("Queued PDF data is missing");
+                const success = await sendToBackend(it.chassis, it.model, it.inspector, it.remarks, it.base64, it.fileName, it.dTime);
+                if (success) {
+                    await completeQueuedUpload(it.id, it.draftRevision);
+                    // The queue record is removed only after server confirmation; newer drafts are preserved.
+                    if (msg) { msg.style.color = "#10b981"; msg.textContent = "✓ Report successfully delivered to Telegram & Sheet!"; }
                 }
+            } catch (err) {
+                console.error("Queue sync error:", err);
+                if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Upload pending. Saved safely on this phone; will retry when internet returns."; }
+                break;
             }
         }
+    } catch (err) {
+        console.error("Queue read error:", err);
+    } finally {
         isSyncing = false;
-    };
-    getAllReq.onerror = () => { isSyncing = false; };
+    }
 }
-
-window.addEventListener('online', processPendingQueue);
+window.addEventListener("online", () => { processPendingQueue(); });
+window.addEventListener("pageshow", () => { if (navigator.onLine) processPendingQueue(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && navigator.onLine) processPendingQueue(); });
 
 async function sendToBackend(chassis, model, inspector, remarks, pdfBase64, fileName, dTime) {
-    let res = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+    if (!navigator.onLine) throw new Error("Internet connection unavailable");
+    const res = await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
-            dateTime: dTime,
-            chassis: chassis,
-            model: model,
-            inspector: inspector,
-            status: 'COMPLETED',
-            remarks: remarks,
-            fileName: fileName,
-            pdfBase64: pdfBase64
+            dateTime: dTime, chassis, model, inspector,
+            status: "COMPLETED", remarks, fileName, pdfBase64
         })
     });
-    let json = await res.json();
-    return json.status === "success";
+    if (!res.ok) throw new Error("Server HTTP " + res.status);
+    const raw = await res.text();
+    let json;
+    try { json = JSON.parse(raw); } catch (e) { throw new Error("Server did not return a valid success response"); }
+    if (json.status !== "success") throw new Error(json.message || "Server did not confirm Telegram upload");
+    return true;
 }
 
-async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName) {
+async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName, draftRevisionAtSubmit) {
     const msg = $("msg");
     const dTime = new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN");
+    if (!blob || !blob.size) throw new Error("PDF is empty; upload cancelled");
+    if (msg) { msg.style.color = "#38bdf8"; msg.textContent = "⏳ Saving report to phone, then sending to Telegram..."; }
 
-    msg.style.color = "#38bdf8";
-    msg.textContent = "⏳ Uploading PDF to Telegram & Sheet...";
-
-    let base64 = await blobToBase64(blob);
-    let queueId = await saveToQueue({ chassis, model, inspector, remarks, base64, fileName, dTime });
+    // Persist the PDF in IndexedDB BEFORE starting the network request.
+    const base64 = await blobToBase64(blob);
+    const queueId = await saveToQueue({ chassis, model, inspector, remarks, base64, fileName, dTime, draftRevision: draftRevisionAtSubmit, createdAt: Date.now() });
 
     if (!navigator.onLine) {
-        msg.style.color = "#d97706";
-        msg.textContent = "⚠️ Internet illa! Report phone-il save cheythu. Net varumbol upload aakum.";
-        return;
+        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ No internet. PDF saved on this phone; it will send automatically when internet returns and the app is open."; }
+        return { queued: true, success: false };
     }
-
     try {
-        let ok = await sendToBackend(chassis, model, inspector, remarks, base64, fileName, dTime);
-        if (ok && queueId) {
-            removeFromQueue(queueId);
+        const ok = await sendToBackend(chassis, model, inspector, remarks, base64, fileName, dTime);
+        if (ok) {
+            await completeQueuedUpload(queueId, draftRevisionAtSubmit);
+            if (msg) { msg.style.color = "#10b981"; msg.textContent = "✓ Telegram & Google Sheet confirmed. New inspection is ready."; }
+            return { queued: false, success: true };
         }
-
-        msg.style.color = "#10b981";
-        msg.textContent = "✓ Successfully Delivered to Telegram & Sheet!";
-
+        throw new Error("Upload was not confirmed by server");
     } catch (err) {
         console.error("Upload error:", err);
-        msg.style.color = "#d97706";
-        msg.textContent = "⚠️ Upload paused. Saved to queue!";
+        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Not confirmed yet. PDF is safely queued on this phone and will retry when internet returns."; }
+        return { queued: true, success: false, error: err };
     }
 }
 
@@ -427,7 +562,7 @@ function smartCompress(fileOrBase64, maxDim=1200, quality=0.75) {
         let img = new Image();
         let isBlob = typeof fileOrBase64 !== 'string';
         let src = isBlob ? URL.createObjectURL(fileOrBase64) : fileOrBase64;
-        
+
         img.onload = () => {
             try {
                 let w = img.naturalWidth || img.width;
@@ -460,12 +595,16 @@ function smartCompress(fileOrBase64, maxDim=1200, quality=0.75) {
             if (isBlob) URL.revokeObjectURL(src);
             resolve(src);
         };
-        img.src = src;
-    });
+        img.src = src;    });
 }
 
 // ================= APP ORIGINAL LOGIC =================
 var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
+// Save every text/select edit to IndexedDB; photo callbacks also save immediately.
+document.addEventListener("input", function(ev){ if (ev.target && ev.target.closest && ev.target.closest("#tabCheck")) scheduleDraftSave(); });
+document.addEventListener("change", function(ev){ if (ev.target && ev.target.closest && ev.target.closest("#tabCheck")) scheduleDraftSave(); });
+window.addEventListener("pagehide", function(){ saveDraftNow().catch(function(e){console.error("Final draft save failed",e);}); });
+
 var selectedFilter = 'original';
 
 var savedInspectors = [];
@@ -487,6 +626,7 @@ renderInspectors();
 function onInspChange() {
     var val = $("inspSelect").value;
     if(val) $("inspName").value = val;
+    scheduleDraftSave();
 }
 
 function addInspector() {
@@ -501,6 +641,7 @@ function addInspector() {
     $("inspSelect").value = n;
     $("inspName").value = n;
     $("newInspInput").value = "";
+    scheduleDraftSave();
 }
 
 function removeInspector() {
@@ -539,7 +680,7 @@ Object.keys(X).forEach(function(m){CAT[m]=(CAT[m]||[]).concat(X[m].filter(functi
 function sv(){try{localStorage.setItem("yardCat",JSON.stringify(X))}catch(e){}}
 function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
 function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
-function onM(){$("M").value=$("ms").value}
+function onM(){$("M").value=$("ms").value;scheduleDraftSave()}
 
 function pick(cam, cb, multi, isCk){
     var i = document.createElement("input");
@@ -547,7 +688,7 @@ function pick(cam, cb, multi, isCk){
     i.accept = "image/*";
     if(cam) i.setAttribute("capture", "environment");
     if(multi) i.multiple = true;
-    
+
     i.onchange = async function(){
         if(!i.files || i.files.length === 0) return;
         for (let f of Array.from(i.files)) {
@@ -571,6 +712,7 @@ async function rd(f,cb,isCk){
 function setBattery(u){
     D.battery = u;
     $("bpv").innerHTML = '<img src="' + u + '" style="width:100%;height:100%;object-fit:contain;">';
+    scheduleDraftSave();
 }
 
 function setFilter(mode){
@@ -617,11 +759,13 @@ var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["righ
 function card(host,store,k,n,ic,crop){
     var d=document.createElement("div");
     d.className="card";
+    d.dataset.host = host; d.dataset.key = k; d.dataset.placeholder = ic;
     d.innerHTML='<div class="l">'+n+'</div><div class="p">'+ic+'</div><div class="b"><button>Cam</button><button class="gl">Gal</button></div>';
     var bs=d.querySelectorAll("button");
     var set=function(u){
         store[k]=u;
         d.querySelector(".p").innerHTML='<img src="'+u+'">';
+        scheduleDraftSave();
     };
     var go=crop?function(u){ei=-2;tg=function(x){set(x)};openC(u)}:set;
     bs[0].onclick=function(){pick(1,go,0,crop?true:false)};
@@ -650,21 +794,19 @@ function gal(id,arr,edit){
     var c=$(id);c.innerHTML="";
     arr.forEach(function(item,i){
         var wrap = document.createElement("div");
-        wrap.className = "th-item";
-        
-        var t=document.createElement("div");
+        wrap.className = "th-item";        var t=document.createElement("div");
         t.className="th";
         t.innerHTML='<img src="'+item.url+'"><button class="x">✕</button>'+(edit?'<button class="e">Edit</button>':'');
-        t.querySelector(".x").onclick=function(){arr.splice(i,1);gal(id,arr,edit)};
+        t.querySelector(".x").onclick=function(){arr.splice(i,1);gal(id,arr,edit);scheduleDraftSave();};
         if(edit) t.querySelector(".e").onclick=function(){ei=i;openC(D.ko[i]||item.url)};
-        
+
         var inp = document.createElement("input");
         inp.type = "text";
         inp.placeholder = "Enter remark for this photo...";
         inp.value = item.remark || "";
         inp.style.margin = "0";
-        inp.oninput = function(){ item.remark = inp.value; };
-        
+        inp.oninput = function(){ item.remark = inp.value; scheduleDraftSave(); };
+
         wrap.appendChild(t);
         wrap.appendChild(inp);
         c.appendChild(wrap);
@@ -677,88 +819,179 @@ function galChecklist(id, arr){
     arr.forEach(function(item, i){
         var wrap = document.createElement("div");
         wrap.className = "th-item";
-        
+
         var t = document.createElement("div");
         t.className = "th";
         t.style.width = "72px";
         t.style.height = "72px";
         t.innerHTML = '<img src="'+item+'"><button class="x">✕</button><button class="e">Edit</button>';
-        t.querySelector(".x").onclick = function(){ arr.splice(i, 1); galChecklist(id, arr); };
+        t.querySelector(".x").onclick = function(){ arr.splice(i, 1); galChecklist(id, arr); scheduleDraftSave(); };
         t.querySelector(".e").onclick = function(){ ei = i; openC(D.ko[i] || item); };
-        
+
         wrap.appendChild(t);
         c.appendChild(wrap);
     });
 }
 
-function addP(u){D.add.push({url: u, remark: ""});gal("ga",D.add,0)}
+function addP(u){D.add.push({url: u, remark: ""});gal("ga",D.add,0);scheduleDraftSave()}
 
 async function sticker(u){
     D.sticker = u;
+    scheduleDraftSave();
     $("spv").innerHTML = '<img src="'+u+'">';
-    $("st").textContent = "Scanning barcode...";
-    var im = new Image();
-    im.src = u;
-    await new Promise(function(r){ im.onload = r; });
-    
-    var vinCode = await scan(im);
-    if(vinCode){
-        $("C").value = vinCode;
-        $("st").style.color = "#10b981";
-        $("st").textContent = "✓ Chassis detected: " + vinCode + ". Select model below.";
-    } else {
-        $("st").style.color = "#d97706";
-        $("st").textContent = "Barcode not read or no 'MAT' code found. Enter manually.";
+    $("st").style.color = "#d97706";
+    $("st").textContent = "Scanning sticker for MAT chassis number...";
+
+    try {
+        var im = new Image();
+        await new Promise(function(resolve, reject){
+            im.onload = resolve;
+            im.onerror = function(){ reject(new Error("Sticker image could not be opened.")); };
+            im.src = u;
+            if(im.complete && im.naturalWidth) resolve();
+        });
+
+        var vinCode = await scan(im);
+        if(vinCode){
+            $("C").value = vinCode;
+            scheduleDraftSave();
+            $("st").style.color = "#10b981";
+            $("st").textContent = "✓ MAT chassis detected: " + vinCode;
+        } else {
+            $("st").style.color = "#d97706";
+            $("st").textContent = "MAT chassis barcode not found. Please retake the sticker photo or enter the number manually.";
+        }
+    } catch(err) {
+        console.error("Sticker scan error:", err);
+        $("st").style.color = "#ef4444";
+        $("st").textContent = "Could not scan this photo. Please retake it or enter the chassis number manually.";
+    }
+}
+
+// Every Tata chassis number in this yard starts with MAT and is 17 characters long.
+function getMatChassis(text){
+    var clean = String(text || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    var match = clean.match(/MAT[A-Z0-9]{14}/);
+    return match ? match[0] : null;
+}
+
+// ZXing fallback: decode all barcodes it can find in a canvas, not just the first one.
+function readWithZXing(canvas){
+    if(!window.ZXing || !ZXing.RGBLuminanceSource || !ZXing.BinaryBitmap || !ZXing.HybridBinarizer || !ZXing.MultiFormatReader) return [];
+    try {
+        var ctx = canvas.getContext("2d", {willReadFrequently:true});
+        var pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        var source = new ZXing.RGBLuminanceSource(pixels.data, canvas.width, canvas.height);
+        var bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(source));
+        var hints = new Map();
+        hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+            ZXing.BarcodeFormat.CODE_128,
+            ZXing.BarcodeFormat.CODE_39,
+            ZXing.BarcodeFormat.QR_CODE,
+            ZXing.BarcodeFormat.DATA_MATRIX,
+            ZXing.BarcodeFormat.ITF,
+            ZXing.BarcodeFormat.CODABAR,
+            ZXing.BarcodeFormat.EAN_13,
+            ZXing.BarcodeFormat.EAN_8,
+            ZXing.BarcodeFormat.UPC_A,
+            ZXing.BarcodeFormat.UPC_E
+        ].filter(Boolean));
+
+        var reader = new ZXing.MultiFormatReader();
+        reader.setHints(hints);
+        var texts = [];
+        if(ZXing.GenericMultipleBarcodeReader){
+            try {
+                var multi = new ZXing.GenericMultipleBarcodeReader(reader);
+                var results = multi.decodeMultiple(bitmap, hints) || [];
+                results.forEach(function(result){ if(result && result.getText) texts.push(result.getText()); });
+            } catch(multiErr) {
+                // Fall back to a single decode on this image region; other regions are checked too.
+                try { reader.reset(); } catch(e){}
+                try {
+                    var one = reader.decode(bitmap);
+                    if(one && one.getText) texts.push(one.getText());
+                } catch(oneErr){}
+            }
+        } else {
+            try {
+                var one = reader.decode(bitmap);
+                if(one && one.getText) texts.push(one.getText());
+            } catch(oneErr){}
+        }
+        return texts;
+    } catch(err) {
+        console.warn("ZXing image decode failed:", err);
+        return [];
     }
 }
 
 async function scan(im){
-    var ang = [0, 90, 270];
-    for(var a = 0; a < ang.length; a++){
-        var c = document.createElement("canvas");
-        var s = Math.min(1, 1600 / Math.max(im.width, im.height));
-        var w = im.width * s;
-        var h = im.height * s;
-        var sw = ang[a] != 0;
-        c.width = sw ? h : w;
-        c.height = sw ? w : h;
-        
-        var g = c.getContext("2d");
-        g.translate(c.width / 2, c.height / 2);
-        g.rotate(ang[a] * Math.PI / 180);
-        g.drawImage(im, -w / 2, -h / 2, w, h);
-        
+    var angles = [0, 90, 180, 270];
+    var detector = null;
+    if("BarcodeDetector" in window){
         try {
-            if ("BarcodeDetector" in window) {
-                var detector = new BarcodeDetector({ formats: ["code_128", "code_39", "qr_code", "data_matrix"] });
-                var results = await detector.detect(c);
-                if (results && results.length > 0) {
-                    for (let item of results) {
-                        let cleanText = (item.rawValue || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
-                        let match = cleanText.match(/MAT[A-Z0-9]+/);
-                        if (match) { c.width = 1; c.height = 1; return match[0]; }
-                    }
-                }
-            }
-        } catch(e){}
-        
-        if (window.ZXing) {
+            var supported = await BarcodeDetector.getSupportedFormats();
+            var wanted = ["code_128", "code_39", "qr_code", "data_matrix", "itf", "codabar", "ean_13", "ean_8", "upc_a", "upc_e"];
+            var formats = wanted.filter(function(f){ return supported.indexOf(f) !== -1; });
+            if(formats.length) detector = new BarcodeDetector({formats:formats});
+        } catch(e) { detector = null; }
+    }
+
+    for(var a = 0; a < angles.length; a++){
+        var c = document.createElement("canvas");
+        var scale = Math.min(1, 1800 / Math.max(im.naturalWidth || im.width, im.naturalHeight || im.height));
+        var w = Math.max(1, Math.round((im.naturalWidth || im.width) * scale));
+        var h = Math.max(1, Math.round((im.naturalHeight || im.height) * scale));
+        var sideways = angles[a] === 90 || angles[a] === 270;
+        c.width = sideways ? h : w;
+        c.height = sideways ? w : h;
+        var g = c.getContext("2d", {willReadFrequently:true});
+        g.translate(c.width/2, c.height/2);
+        g.rotate(angles[a] * Math.PI / 180);
+        g.drawImage(im, -w/2, -h/2, w, h);
+
+        // Native BarcodeDetector returns an array, so check every barcode on the sticker.
+        if(detector){
             try {
-                var reader = new ZXing.BrowserMultiFormatReader();
-                var zRes = await reader.decodeFromCanvas(c);
-                if (zRes) {
-                    let cleanText = zRes.getText().replace(/[^A-Z0-9]/gi, "").toUpperCase();
-                    let match = cleanText.match(/MAT[A-Z0-9]+/);
-                    if (match) { c.width = 1; c.height = 1; return match[0]; }
+                var found = await detector.detect(c);
+                for(var i=0; i<found.length; i++){
+                    var detected = getMatChassis(found[i].rawValue);
+                    if(detected){ c.width=1; c.height=1; return detected; }
                 }
-            } catch(e){}
+            } catch(e) { console.warn("Native barcode scan failed on this rotation:", e); }
         }
-        c.width = 1; c.height = 1;
+
+        // iPhone Safari and other browsers without BarcodeDetector use ZXing.
+        // Scan the whole sticker and overlapping quarters so a second barcode is not missed.
+        var regions = [{x:0,y:0,w:c.width,h:c.height}];
+        var midX = Math.floor(c.width/2), midY = Math.floor(c.height/2);
+        var padX = Math.floor(c.width*0.06), padY = Math.floor(c.height*0.06);
+        regions.push(
+            {x:0,y:0,w:Math.min(c.width,midX+padX),h:Math.min(c.height,midY+padY)},
+            {x:Math.max(0,midX-padX),y:0,w:c.width-Math.max(0,midX-padX),h:Math.min(c.height,midY+padY)},
+            {x:0,y:Math.max(0,midY-padY),w:Math.min(c.width,midX+padX),h:c.height-Math.max(0,midY-padY)},
+            {x:Math.max(0,midX-padX),y:Math.max(0,midY-padY),w:c.width-Math.max(0,midX-padX),h:c.height-Math.max(0,midY-padY)}
+        );
+
+        for(var r=0; r<regions.length; r++){
+            var region=regions[r];
+            if(region.w<40 || region.h<40) continue;
+            var tile=document.createElement("canvas");
+            tile.width=region.w; tile.height=region.h;
+            tile.getContext("2d", {willReadFrequently:true}).drawImage(c,region.x,region.y,region.w,region.h,0,0,region.w,region.h);
+            var texts=readWithZXing(tile);
+            for(var t=0; t<texts.length; t++){
+                var chassis=getMatChassis(texts[t]);
+                if(chassis){ c.width=1; c.height=1; tile.width=1; tile.height=1; return chassis; }
+            }
+            tile.width=1; tile.height=1;
+        }
+        c.width=1; c.height=1;
     }
     return null;
-}
-
-function box(im){
+}function box(im){
     var cv = document.createElement("canvas"), W = 240, H = Math.round(im.naturalHeight * W / im.naturalWidth);
     cv.width = W; cv.height = H;
     var g = cv.getContext("2d");
@@ -830,10 +1063,12 @@ function doneC(){
     canvas.width = 1; canvas.height = 1;
     if(ei==-2){
         tg(u);
+        scheduleDraftSave();
     } else {
         if(ei>=0) D.ck[ei]=u;
         else { D.ck.push(u); D.ko.push(o); }
         galChecklist("gc", D.ck);
+        scheduleDraftSave();
     }
     closeC(true);
 }
@@ -851,7 +1086,7 @@ function build(){
     var insp = $("inspName").value.trim();
     if(!insp){alert("Please select or enter Inspector Name.");return null}
     if(!ch||!m){alert("Please enter Chassis Number and Vehicle Model.");return null}
-    
+
     let remarksList = D.add.map((item, idx) => item.remark ? `Photo ${idx+1}: ${item.remark}` : "").filter(Boolean);
     let remarksStr = remarksList.length > 0 ? remarksList.join(" | ") : "No remarks";
 
@@ -863,7 +1098,7 @@ function build(){
         ["Inspector / Technician:", insp],
         ["Inspection Date:",n.toLocaleDateString("en-GB")+" "+n.toLocaleTimeString("en-IN")]
     ].forEach(function(r,i){p.setFont(undefined,"bold");p.text(r[0],18,35+i*7);p.setFont(undefined,"normal");p.text(r[1],68,35+i*7)});
-    
+
     p.setFont(undefined,"bold");p.setFontSize(11);p.setTextColor(2,132,199);p.text("Vehicle Photos",14,68);
     var L=SIX.map(function(s,i){return[D.six[s[0]],(i+1)+". "+s[1]]}).concat(D.add.map(function(item,i){return[item.url,"Additional Photo "+(i+1)+(item.remark ? " ("+item.remark+")":"")]}));
     L.forEach(function(it,i){var x=14+(i%3)*62,y;if(i<12)y=74+Math.floor(i/3)*50;else{var j=i-12;if(j%15==0){p.addPage();hd(p,"PDI REPORT",20)}y=36+Math.floor((j%15)/3)*50}img(p,it[0],x,y,58,42,it[1],false)});
@@ -884,37 +1119,43 @@ let isExporting = false;
 async function out(share){
     if(isExporting) return;
     var b=build(); if(!b)return;
-
     isExporting = true;
     const btnSave = $("btnSave"), btnShare = $("btnShare");
     if(btnSave) { btnSave.disabled = true; btnSave.textContent = "⏳ Processing..."; }
     if(btnShare) { btnShare.disabled = true; btnShare.textContent = "⏳ Processing..."; }
-
     try {
-        var blob=b.p.output("blob"), f=new File([blob],b.f,{type:"application/pdf"});
+        const blob = b.p.output("blob");
+        const f = new File([blob], b.f, {type:"application/pdf"});
+        // Make sure the current inspection is durable before creating its upload queue item.
+        const submittedRevision = await saveDraftNow();
 
-        uploadDirectly(b.ch, b.m, b.insp, b.remarks, blob, b.f);
-
-        if(share){
-            try{
-                if(navigator.canShare&&navigator.canShare({files:[f]})){
-                    await navigator.share({files:[f],title:"PDI Report - "+b.f});
-                }
-            }catch(e){
-                if(e.name!="AbortError") console.error(e);
-            }
-        } else {
-            var a=document.createElement("a");
-            a.href=URL.createObjectURL(blob);
-            a.download=b.f;
-            a.click();
+        // Start native sharing during the original tap (before awaiting network operations).
+        let sharePromise = null;
+        if (share && navigator.canShare && navigator.canShare({files:[f]})) {
+            try { sharePromise = navigator.share({files:[f], title:"PDI Report - "+b.f}); }
+            catch(e) { console.error("Share start error:", e); }
+        } else if (!share) {
+            const a=document.createElement("a");
+            const objectUrl=URL.createObjectURL(blob);
+            a.href=objectUrl; a.download=b.f; a.click();
+            setTimeout(()=>URL.revokeObjectURL(objectUrl), 30000);
         }
+
+        // uploadDirectly first saves the PDF into IndexedDB, then attempts the server upload.
+        await uploadDirectly(b.ch, b.m, b.insp, b.remarks, blob, b.f, submittedRevision);
+        if (sharePromise) {
+            try { await sharePromise; }
+            catch(e) { if(e.name!=="AbortError") console.error("Share error:",e); }
+        }
+    } catch(err) {
+        console.error("Report preparation error:", err);
+        const msg=$("msg");
+        if(msg){msg.style.color="#ef4444";msg.textContent="⚠️ Report could not be safely queued: "+(err.message||"Storage error")+". Do not close this page until saved.";}
+        alert("PDF/queue save failed. Please check phone storage and try again. Your inspection draft has not been cleared.");
     } finally {
-        setTimeout(() => {
-            isExporting = false;
-            if(btnSave) { btnSave.disabled = false; btnSave.textContent = "💾 Save PDF"; }
-            if(btnShare) { btnShare.disabled = false; btnShare.textContent = "📤 Share PDF"; }
-        }, 1500);
+        isExporting = false;
+        if(btnSave) { btnSave.disabled = false; btnSave.textContent = "💾 Save PDF"; }
+        if(btnShare) { btnShare.disabled = false; btnShare.textContent = "📤 Share PDF"; }
     }
 }
 </script>
