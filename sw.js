@@ -1,17 +1,25 @@
-// AUTO-UPDATING NETWORK-FIRST SERVICE WORKER (VERSION 27)
-const CACHE_NAME = 'pdi-pro-cache-v27';
+const CACHE_NAME = 'pdi-pro-cache-v28';
+const urlsToCache = [
+  './',
+  './index.html',
+  './manifest.json'
+];
 
-self.addEventListener('install', (e) => {
+self.addEventListener('install', event => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(urlsToCache))
+  );
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) => {
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
       return Promise.all(
-        keys.map((k) => {
-          if (k !== CACHE_NAME) {
-            return caches.delete(k);
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
           }
         })
       );
@@ -19,22 +27,9 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
-  const url = new URL(e.request.url);
-  if (url.origin.includes('telegram.org') || url.origin.includes('google.com') || url.origin.includes('script.google')) {
-    return;
-  }
-
-  e.respondWith(
-    fetch(e.request)
-      .then((res) => {
-        if (res && res.status === 200 && res.type === 'basic') {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, copy));
-        }
-        return res;
-      })
-      .catch(() => caches.match(e.request))
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    fetch(event.request)
+      .catch(() => caches.match(event.request))
   );
 });
