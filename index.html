@@ -396,7 +396,6 @@ async function completeQueuedUpload(queueId, revision) {
             draftStore.delete("current");
             clearedCurrentDraft = true;
         }
-    };        }
         queueStore.delete(queueId);
     };
     getDraft.onerror = () => tx.abort();
