@@ -1242,18 +1242,30 @@ async function out(share){
         const f = new File([blob], b.f, {type:"application/pdf"});
         const submittedRevision = await saveDraftNow();
         let sharePromise = null;
+        let shareText = [
+            "PDI INSPECTION REPORT",
+            "Chassis Number: " + b.ch,
+            "Vehicle Model: " + b.m,
+            "Inspector: " + b.insp,
+            "",
+            "REMARKS:",
+            b.remarks
+        ].join("\n");
+        let detailsCopied = false;
         if (share && navigator.canShare && navigator.canShare({files:[f]})) {
-            const shareText = [
-                "PDI Inspection Report",
-                "Chassis Number: " + b.ch,
-                "Vehicle Model: " + b.m,
-                "Inspector: " + b.insp,
-                "Remarks:",
-                b.remarks
-            ].join("\n");
-            setExportProgress("PDF ready. Opening Share options...");
+            // Copy details during the original Share-button action. Android may block a second
+            // Web Share dialog after the PDF share completes, so the user can paste the text.
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(shareText);
+                    detailsCopied = true;
+                }
+            } catch(copyBeforeShareError) {
+                console.warn("Could not pre-copy inspection details:", copyBeforeShareError);
+            }
+            setExportProgress("PDF ready. Choose WhatsApp and send the PDF. Details are prepared for the next message...");
             await nextPaint();
-            try { sharePromise = navigator.share({files:[f], title:"PDI Report - "+b.f, text:shareText}); }
+            try { sharePromise = navigator.share({files:[f], title:"PDI Report - "+b.f}); }
             catch(e) { console.error("Share start error:",e); }
         } else if (!share) {
             setExportProgress("PDF ready. Saving file to your phone...");
@@ -1274,8 +1286,18 @@ async function out(share){
         await nextPaint();
         await uploadDirectly(b.ch,b.m,b.insp,b.remarks,blob,b.f,submittedRevision);
         if(sharePromise){
-            try { await sharePromise; }
-            catch(e){ if(e.name!=="AbortError") console.error("Share error:",e); }
+            let pdfShareCompleted = false;
+            try { await sharePromise; pdfShareCompleted = true; }
+            catch(e){ if(e.name!=="AbortError") console.error("PDF share error:",e); }
+            if(pdfShareCompleted){
+                if(detailsCopied){
+                    setExportProgress("PDF share finished. Inspection details are copied. Open the same WhatsApp chat and paste them as the next message.");
+                    alert("PDF share is complete. Vehicle details and remarks are copied. Open the SAME WhatsApp chat, tap the message box, paste, and press Send.");
+                } else {
+                    setExportProgress("PDF share finished. Automatic copy was unavailable; send the details separately.");
+                    alert("PDF share is complete. Automatic copy was unavailable. Please return to the app and copy the inspection details, then send them in the same WhatsApp chat.");
+                }
+            }
         }
     } catch(err) {
         console.error("Report preparation error:",err);
