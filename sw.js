@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pdi-pro-cache-v28';
+const CACHE_NAME = 'pdi-pro-cache-v30';
 const urlsToCache = [
   './',
   './index.html',
