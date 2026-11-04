@@ -210,7 +210,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzDw7cIVvFSCjDCS8v_v8Fo3hRwEGRjwBxRhyZ5k8rs42rW_5znLSxRtKwDO1ORBHJV/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz6Ai9YduFmmAbJy4pzaqLH-hK7kWiZL1UwHWmqMBg1SsNW-sONgxC3UDTwhXttHRCq/exec";
 
 // TAB SWITCHING
 function switchTab(tab) {
@@ -274,7 +274,7 @@ function filterReports() {
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v28", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v30", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -637,7 +637,7 @@ SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});
 card("docs", D.doc, "f22", "Form 22", "📄", 1);
 card("docs", D.doc, "pen", "Chassis Print", "📋", 0);
 
-// ADDED PHOTOS WITH REMARKS SUPPORT
+// ADDED PHOTOS WITH REMARKS SUPPORT (Only for Additional Photos)
 function gal(id,arr,edit){
     var c=$(id);c.innerHTML="";
     arr.forEach(function(item,i){
@@ -662,6 +662,27 @@ function gal(id,arr,edit){
         c.appendChild(wrap);
     });
 }
+
+// CHECKLIST GALLERY WITHOUT REMARKS (Only thumbnail, edit, delete)
+function galChecklist(id, arr){
+    var c = $(id); c.innerHTML = "";
+    arr.forEach(function(item, i){
+        var wrap = document.createElement("div");
+        wrap.className = "th-item";
+        
+        var t = document.createElement("div");
+        t.className = "th";
+        t.style.width = "72px";
+        t.style.height = "72px";
+        t.innerHTML = '<img src="'+item+'"><button class="x">✕</button><button class="e">Edit</button>';
+        t.querySelector(".x").onclick = function(){ arr.splice(i, 1); galChecklist(id, arr); };
+        t.querySelector(".e").onclick = function(){ ei = i; openC(D.ko[i] || item); };
+        
+        wrap.appendChild(t);
+        c.appendChild(wrap);
+    });
+}
+
 function addP(u){D.add.push({url: u, remark: ""});gal("ga",D.add,0)}
 
 async function sticker(u){
@@ -804,7 +825,7 @@ function doneC(){
     } else {
         if(ei>=0) D.ck[ei]=u;
         else { D.ck.push(u); D.ko.push(o); }
-        gal("gc",D.ck,1);
+        galChecklist("gc", D.ck);
     }
     closeC(true);
 }
