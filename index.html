@@ -274,7 +274,7 @@ function filterReports() {
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v27", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v28", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
