@@ -172,6 +172,9 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
         <button id="btnSave" style="background:#10b981" onclick="out(0)">💾 Save PDF</button>
         <button id="btnShare" style="background:#2563eb" onclick="out(1)">📤 Share PDF</button>
     </div>
+    <div style="text-align:center;margin:10px 0 4px;">
+        <button id="btnCancelInspection" type="button" onclick="cancelCurrentInspection()" style="background:transparent;color:#fca5a5;border:1px solid #ef4444;padding:8px 14px;font-size:13px;font-weight:800;border-radius:9px;">Cancel Current Inspection</button>
+    </div>
     <p id="msg" style="font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;margin-top:14px;min-height:24px;word-break:break-word;"></p>
 </div>
 
@@ -474,6 +477,61 @@ async function removeFromQueue(id) {
 }
 
 let isSyncing = false;
+async function cancelCurrentInspection() {
+    const ok = confirm("Cancel this current vehicle inspection?\n\nAll details and photos entered for this vehicle will be cleared from this phone. No PDF will be generated, and nothing will be sent to Telegram or Google Sheet. Previously uploaded reports and any other pending uploads will not be deleted.");
+    if (!ok) return;
+    try {
+        await dbReady;
+        // Wait for any autosave already in progress, then delete only the current draft.
+        await draftSaveChain;
+        draftRevision++;
+        if (db) {
+            const tx = db.transaction("inspection_draft", "readwrite");
+            tx.objectStore("inspection_draft").delete("current");
+            await idbDone(tx);
+        }
+        resetInspectionUI();
+        const msg = $("msg");
+        if (msg) {
+            msg.style.color = "#fca5a5";
+            msg.textContent = "Current inspection cancelled. No PDF was generated or uploaded.";
+        }
+        alert("Current inspection cancelled. No PDF was generated and nothing was sent to Telegram or Google Sheet. Previous reports are safe.");
+    } catch (err) {
+        console.error("Cancel current inspection failed:", err);
+        alert("Could not cancel this inspection safely. Please try again.");
+    }
+}
+
+async function cancelPendingPdf() {
+    await dbReady;
+    if (!db) { alert("Phone storage is not available. No pending PDF was cancelled."); return; }
+    if (isSyncing) {
+        alert("A PDF upload is currently in progress. Please wait until it finishes, then try again if it is still pending.");
+        return;
+    }
+    try {
+        const readTx = db.transaction("pending_uploads", "readonly");
+        const items = await idbRequest(readTx.objectStore("pending_uploads").getAll());
+        if (!items || !items.length) {
+            alert("There is no pending PDF to cancel.");
+            return;
+        }
+        const ok = confirm("Cancel " + items.length + " pending PDF upload(s) saved on this phone?\n\nThis removes only pending uploads. It does not delete reports already sent to Telegram / Google Sheet, and it does not clear your current inspection form.");
+        if (!ok) return;
+        const tx = db.transaction("pending_uploads", "readwrite");
+        const store = tx.objectStore("pending_uploads");
+        items.forEach(item => { if (item && item.id != null) store.delete(item.id); });
+        await idbDone(tx);
+        const msg = $("msg");
+        if (msg) { msg.style.color = "#fca5a5"; msg.textContent = "Pending PDF upload cancelled. Current inspection data was kept."; }
+        alert("Pending PDF upload cancelled. Your current inspection data has been kept.");
+    } catch (err) {
+        console.error("Cancel pending PDF failed:", err);
+        alert("Could not cancel the pending PDF. Please try again.");
+    }
+}
+
 async function processPendingQueue() {
     await dbReady;
     if (isSyncing || !navigator.onLine || !db) return;
@@ -700,7 +758,7 @@ function pick(cam, cb, multi, isCk){
 
 async function rd(f,cb,isCk){
     if(isCk){
-        let scaled = await smartCompress(f, 2000, 0.95);
+        let scaled = await smartCompress(f, 1400, 0.82);
         cb(scaled);
     } else {
         let compactImage = await smartCompress(f, 1100, 0.70);
@@ -785,7 +843,7 @@ ICON.fl=S0+TV+mk(34,9,'FL')+'</svg>';ICON.fr=S0+TV+mk(66,9,'FR')+'</svg>';ICON.r
 
 SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});
 
-card("docs", D.doc, "f22", "Form 22", "📄", 1);
+card("docs", D.doc, "f22", "Form 22", "📄", 0);
 card("docs", D.doc, "pen", "Chassis Print", "📋", 0);
 
 // ADDED PHOTOS WITH REMARKS SUPPORT (Only for Additional Photos)
@@ -1027,7 +1085,13 @@ async function scan(im){
     return { x: Math.round(x0 * sx), y: Math.round(y0 * sy), width: Math.round(cropW), height: Math.round(cropH) };
 }
 
-function newCk(u){ei=-1;openC(u)}
+function newCk(u){
+    // Add checklist images directly; do not depend on the cropper modal to save them.
+    D.ck.push(u);
+    D.ko.push(u);
+    galChecklist("gc", D.ck);
+    scheduleDraftSave();
+}
 
 window.addEventListener('popstate', function(e){
     if($("cm").style.display === "flex"){ closeC(false); }
