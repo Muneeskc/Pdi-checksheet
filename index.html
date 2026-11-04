@@ -130,7 +130,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     <input type="text" id="M" placeholder="Model" style="margin:0"></div>
 
     <label>Chassis Number</label>
-    <input type="text" id="C" placeholder="e.g. MAT853036TWHX0267" style="text-transform:uppercase" oninput="autoSaveDraft()">
+    <input type="text" id="C" placeholder="e.g. MAT853036TWHX0267" style="text-transform:uppercase">
 
     <div class="box"><label>Inspector / Technician Name</label>
     <div class="row" style="margin-bottom:8px">
@@ -138,7 +138,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
         <button style="background:#ef4444;white-space:nowrap;padding:10px 12px" onclick="removeInspector()">🗑️ Remove</button>
     </div>
     <div class="row" style="margin:-2px 0 10px"><input type="text" id="newInspInput" placeholder="Add new inspector" style="margin:0"><button onclick="addInspector()">＋ Add</button></div>
-    <input type="text" id="inspName" placeholder="Inspector Name" style="margin:0" oninput="autoSaveDraft()"></div>
+    <input type="text" id="inspName" placeholder="Inspector Name" style="margin:0"></div>
 
     <div class="sec"><span>📸 Vehicle Photos (Sides &amp; Corners)</span></div><div class="g3" id="six"></div>
 
@@ -210,52 +210,6 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-// ================= AUTO-SAVE DRAFT SYSTEM =================
-function autoSaveDraft() {
-    let draft = {
-        model: $("M").value,
-        chassis: $("C").value,
-        inspector: $("inspName").value,
-        sticker: D.sticker,
-        battery: D.battery,
-        add: D.add,
-        ck: D.ck,
-        ko: D.ko,
-        doc: D.doc
-    };
-    try {
-        localStorage.setItem("pdi_draft_data", JSON.stringify(draft));
-    } catch(e) {}
-}
-
-function loadDraft() {
-    try {
-        let saved = localStorage.getItem("pdi_draft_data");
-        if (!saved) return;
-        let d = JSON.parse(saved);
-        
-        if (d.model) { $("M").value = d.model; $("ms").value = d.model; }
-        if (d.chassis) $("C").value = d.chassis;
-        if (d.inspector) $("inspName").value = d.inspector;
-        
-        if (d.sticker) {
-            D.sticker = d.sticker;
-            $("spv").innerHTML = '<img src="'+d.sticker+'">';
-        }
-        if (d.battery) {
-            D.battery = d.battery;
-            $("bpv").innerHTML = '<img src="'+d.battery+'" style="width:100%;height:100%;object-fit:contain;">';
-        }
-        if (d.add) { D.add = d.add; gal("ga", D.add, 0); }
-        if (d.ck) { D.ck = d.ck; D.ko = d.ko || []; galChecklist("gc", D.ck); }
-        if (d.doc) { D.doc = d.doc; }
-    } catch(e) {}
-}
-
-function clearDraft() {
-    try { localStorage.removeItem("pdi_draft_data"); } catch(e){}
-}
-
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUIp2DcWIiapVjQDStYoxnprBHwOOh_DbzUsOwMpDkvQqbLjJVUyaaMBZSUNYXpCqa/exec";
 
 // TAB SWITCHING
@@ -433,7 +387,7 @@ async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName
 
     try {
         let ok = await sendToBackend(chassis, model, inspector, remarks, base64, fileName, dTime);
-        if (ok && queueId) { removeFromQueue(queueId); clearDraft(); }
+        if (ok && queueId) { removeFromQueue(queueId); }
         msg.style.color = "#10b981";
         msg.textContent = "✓ Successfully Delivered to Telegram & Sheet!";
     } catch (err) {
@@ -492,7 +446,7 @@ renderInspectors();
 
 function onInspChange() {
     var val = $("inspSelect").value;
-    if(val) { $("inspName").value = val; autoSaveDraft(); }
+    if(val) $("inspName").value = val;
 }
 
 function addInspector() {
@@ -504,7 +458,6 @@ function addInspector() {
     }
     renderInspectors();
     $("inspSelect").value = n; $("inspName").value = n; $("newInspInput").value = "";
-    autoSaveDraft();
 }
 
 function removeInspector() {
@@ -515,7 +468,6 @@ function removeInspector() {
         savedInspectors = savedInspectors.filter(function(x){ return x !== current; });
         try { localStorage.setItem("yardInspectors", JSON.stringify(savedInspectors)); } catch(e){}
         renderInspectors(); $("inspName").value = "";
-        autoSaveDraft();
     }
 }
 
@@ -541,7 +493,7 @@ Object.keys(X).forEach(function(m){CAT[m]=(CAT[m]||[]).concat(X[m].filter(functi
 function sv(){try{localStorage.setItem("yardCat",JSON.stringify(X))}catch(e){}}
 function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
 function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
-function onM(){$("M").value=$("ms").value; autoSaveDraft();}
+function onM(){$("M").value=$("ms").value}
 
 function pick(cam, cb, multi, isCk){
     var i = document.createElement("input"); i.type = "file"; i.accept = "image/*";
@@ -563,7 +515,6 @@ async function rd(f,cb,isCk){
 function setBattery(u){
     D.battery = u;
     $("bpv").innerHTML = '<img src="' + u + '" style="width:100%;height:100%;object-fit:contain;">';
-    autoSaveDraft();
 }
 
 function setFilter(mode){
@@ -602,7 +553,7 @@ var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["righ
 function card(host,store,k,n,ic,crop){
     var d=document.createElement("div"); d.className="card";
     d.innerHTML='<div class="l">'+n+'</div><div class="p">'+ic+'</div><div class="b"><button>Cam</button><button class="gl">Gal</button></div>';
-    var bs=d.querySelectorAll("button"), set=function(u){ store[k]=u; d.querySelector(".p").innerHTML='<img src="'+u+'">'; autoSaveDraft(); };
+    var bs=d.querySelectorAll("button"), set=function(u){ store[k]=u; d.querySelector(".p").innerHTML='<img src="'+u+'">'; };
     var go=crop?function(u){ei=-2;tg=function(x){set(x)};openC(u)}:set;
     bs[0].onclick=function(){pick(1,go,0,crop?true:false)};
     bs[1].onclick=function(){pick(0,go,0,crop?true:false)};
@@ -630,10 +581,10 @@ function gal(id,arr,edit){
         var wrap = document.createElement("div"); wrap.className = "th-item";
         var t=document.createElement("div"); t.className="th";
         t.innerHTML='<img src="'+item.url+'"><button class="x">✕</button>'+(edit?'<button class="e">Edit</button>':'');
-        t.querySelector(".x").onclick=function(){arr.splice(i,1);gal(id,arr,edit); autoSaveDraft();};
+        t.querySelector(".x").onclick=function(){arr.splice(i,1);gal(id,arr,edit)};
         if(edit) t.querySelector(".e").onclick=function(){ei=i;openC(D.ko[i]||item.url)};
         var inp = document.createElement("input"); inp.type = "text"; inp.placeholder = "Enter remark..."; inp.value = item.remark || ""; inp.style.margin = "0";
-        inp.oninput = function(){ item.remark = inp.value; autoSaveDraft(); };
+        inp.oninput = function(){ item.remark = inp.value; };
         wrap.appendChild(t); wrap.appendChild(inp); c.appendChild(wrap);
     });
 }
@@ -644,13 +595,13 @@ function galChecklist(id, arr){
         var wrap = document.createElement("div"); wrap.className = "th-item";
         var t = document.createElement("div"); t.className = "th"; t.style.width = "72px"; t.style.height = "72px";
         t.innerHTML = '<img src="'+item+'"><button class="x">✕</button><button class="e">Edit</button>';
-        t.querySelector(".x").onclick = function(){ arr.splice(i, 1); galChecklist(id, arr); autoSaveDraft(); };
+        t.querySelector(".x").onclick = function(){ arr.splice(i, 1); galChecklist(id, arr); };
         t.querySelector(".e").onclick = function(){ ei = i; openC(D.ko[i] || item); };
         wrap.appendChild(t); c.appendChild(wrap);
     });
 }
 
-function addP(u){D.add.push({url: u, remark: ""}); gal("ga",D.add,0); autoSaveDraft();}
+function addP(u){D.add.push({url: u, remark: ""});gal("ga",D.add,0)}
 
 async function sticker(u){
     D.sticker = u; $("spv").innerHTML = '<img src="'+u+'">'; $("st").textContent = "Scanning barcode...";
@@ -661,7 +612,6 @@ async function sticker(u){
     } else {
         $("st").style.color = "#d97706"; $("st").textContent = "Barcode not read. Enter manually.";
     }
-    autoSaveDraft();
 }
 
 async function scan(im){
@@ -730,7 +680,6 @@ function doneC(){
         galChecklist("gc", D.ck);
     }
     closeC(true);
-    autoSaveDraft();
 }
 
 function hd(p,t,s){p.setFillColor(15,23,42);p.rect(0,0,210,s||24,"F");p.setTextColor(255,255,255);p.setFontSize(14);p.setFont(undefined,"bold");p.text(t,14,16)}
@@ -801,11 +750,6 @@ async function out(share){
         }, 1500);
     }
 }
-
-// Load draft when app starts
-window.addEventListener('DOMContentLoaded', () => {
-    loadDraft();
-});
 </script>
 
 <script>
