@@ -199,10 +199,10 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
         </div>
         <div style="display:flex;gap:6px;justify-content:space-between;align-items:center;margin-top:6px;">
             <div style="display:flex;gap:5px;">
-                <button onclick="cr.rotate(-90)">↺ Left</button>
-                <button onclick="cr.rotate(90)">↻ Right</button>
+                <button onclick="if(cr)cr.rotate(-90)">↺ Left</button>
+                <button onclick="if(cr)cr.rotate(90)">↻ Right</button>
                 <button style="background:#0284c7" onclick="auto()">⚡ Detect</button>
-                <button onclick="cr.reset()">Full</button>
+                <button onclick="if(cr)cr.reset()">Full</button>
             </div>
             <button style="background:#10b981;font-size:13px;padding:9px 18px" onclick="doneC()">✓ Done Crop</button>
         </div>
@@ -690,12 +690,7 @@ async function scan(im){
 }
 
 function box(im){
-    var cv = document.createElement("canvas"), W = 240, H = Math.round(im.naturalHeight * W / im.naturalWidth);
-    cv.width = W; cv.height = H; var g = cv.getContext("2d"); g.drawImage(im, 0, 0, W, H);
-    var d = g.getImageData(0, 0, W, H).data, getLum = function(x, y){ var i = (y * W + x) * 4; return 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]; };
-    var x0 = 0, x1 = W - 1, y0 = 0, y1 = H - 1;
-    cv.width = 1; cv.height = 1;
-    return { x: 0, y: 0, width: im.naturalWidth, height: im.naturalHeight };
+    return { x: 0, y: 0, width: im.naturalWidth || 1000, height: im.naturalHeight || 1000 };
 }
 
 function newCk(u){ei=-1; openC(u);}
@@ -707,8 +702,11 @@ window.addEventListener('popstate', function(e){
 function openC(u){
     var i=$("ci"); setFilter('original'); $("cm").style.display="flex"; history.pushState({modal: "scanner"}, "");
     if(cr){cr.destroy(); cr=null;}
-    i.onload=function(){ cr=new Cropper(i,{ viewMode:1, autoCropArea: 1.0, restore:false, highlight:false, zoomable:true, zoomOnTouch:true }); };
+    i.onload=function(){ 
+        cr=new Cropper(i,{ viewMode:1, autoCropArea: 1.0, restore:false, highlight:false, zoomable:true, zoomOnTouch:true }); 
+    };
     i.src=u;
+    if(i.complete) i.onload();
 }
 
 function auto(){ if(cr) cr.setData(box($("ci"))); }
@@ -734,11 +732,20 @@ function doneC(){
 }
 
 function hd(p,t,s){p.setFillColor(15,23,42);p.rect(0,0,210,s||24,"F");p.setTextColor(255,255,255);p.setFontSize(14);p.setFont(undefined,"bold");p.text(t,14,16)}
+
 function img(p,u,x,y,w,h,l,isChecklist){
     p.setFont(undefined,"bold");p.setFontSize(8);p.setTextColor(71,85,105);
     if(l)p.text(l,x,y-2);
-    if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,isChecklist?'SLOW':'FAST');
-    else{p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20)}
+    if(u){
+        try {
+            var fmt = (u.indexOf("data:image/png") === 0) ? "PNG" : "JPEG";
+            p.addImage(u, fmt, x, y, w, h, undefined, isChecklist ? 'SLOW' : 'FAST');
+        } catch(e){
+            p.rect(x,y,w,h,"S");p.text("Image Error",x+15,y+20);
+        }
+    } else {
+        p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20);
+    }
 }
 
 function build(){
