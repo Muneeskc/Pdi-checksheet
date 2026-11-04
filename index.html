@@ -210,7 +210,8 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </div>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz6Ai9YduFmmAbJy4pzaqLH-hK7kWiZL1UwHWmqMBg1SsNW-sONgxC3UDTwhXttHRCq/exec";
+// പുതുതായി നൽകിയ വെബ് ആപ്പ് ലിങ്ക് ഇവിടെ കൃത്യമായി ചേർത്തിരിക്കുന്നു
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxUIp2DcWIiapVjQDStYoxnprBHwOOh_DbzUsOwMpDkvQqbLjJVUyaaMBZSUNYXpCqa/exec";
 
 // TAB SWITCHING
 function switchTab(tab) {
@@ -274,7 +275,7 @@ function filterReports() {
 
 // ================= STABLE BASE64 INDEXEDDB QUEUE =================
 let db = null;
-const reqDB = indexedDB.open("PDI_Clean_Queue_v30", 1);
+const reqDB = indexedDB.open("PDI_Clean_Queue_v32", 1);
 reqDB.onupgradeneeded = (e) => {
     let d = e.target.result;
     if (!d.objectStoreNames.contains("pending_uploads")) {
@@ -663,7 +664,7 @@ function gal(id,arr,edit){
     });
 }
 
-// CHECKLIST GALLERY WITHOUT REMARKS (Only thumbnail, edit, delete)
+// CHECKLIST GALLERY WITHOUT REMARKS (ONLY THUMBNAIL, EDIT, DELETE - NO REMARK INPUT)
 function galChecklist(id, arr){
     var c = $(id); c.innerHTML = "";
     arr.forEach(function(item, i){
