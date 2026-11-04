@@ -655,6 +655,21 @@ function smartCompress(fileOrBase64, maxDim=1200, quality=0.75) {
         img.src = src;    });
 }
 
+// Keep original photo quality for normal inspections. Only lower checklist quality
+// from 90% to 82% when the generated PDF exceeds the 20 MB limit.
+async function preparePdfImages(){
+    // Images are already compressed when selected. Preserve their current quality here.
+    return;
+}
+
+async function reduceChecklistForPdfLimit(targetQuality){
+    const quality = Number(targetQuality || 0.85);
+    for(let i=0;i<(D.ck||[]).length;i++){
+        if(D.ck[i]) D.ck[i]=await smartCompress(D.ck[i],1600,quality);
+    }
+    scheduleDraftSave();
+}
+
 // ================= APP ORIGINAL LOGIC =================
 var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
 // Save every text/select edit to IndexedDB; photo callbacks also save immediately.
@@ -758,10 +773,10 @@ function pick(cam, cb, multi, isCk){
 
 async function rd(f,cb,isCk){
     if(isCk){
-        let scaled = await smartCompress(f, 1400, 0.82);
+        let scaled = await smartCompress(f, 1600, 0.90);
         cb(scaled);
     } else {
-        let compactImage = await smartCompress(f, 1100, 0.70);
+        let compactImage = await smartCompress(f, 1200, 0.75);
         cb(compactImage);
     }
 }
@@ -1150,8 +1165,11 @@ function build(){
     if(!insp){alert("Please select or enter Inspector Name.");return null}
     if(!ch||!m){alert("Please enter Chassis Number and Vehicle Model.");return null}
 
-    let remarksList = D.add.map((item, idx) => item.remark ? `Photo ${idx+1}: ${item.remark}` : "").filter(Boolean);
-    let remarksStr = remarksList.length > 0 ? remarksList.join(" | ") : "No remarks";
+    // Keep Telegram / Google Sheet remarks clean: numbered points only, no "Photo" prefix.
+    let remarksList = D.add.map(item => (item.remark || "").trim()).filter(Boolean);
+    let remarksStr = remarksList.length > 0
+        ? remarksList.map((remark, idx) => `${idx + 1}. ${remark}`).join("\n")
+        : "No remarks";
 
     var n=new Date(), p=new window.jspdf.jsPDF("p","mm","a4");
     hd(p,"PDI REPORT");p.setTextColor(15,23,42);p.setFontSize(10);p.setFillColor(241,245,249);p.roundedRect(14,28,182,32,2,2,"F");
@@ -1179,42 +1197,91 @@ function build(){
 }
 
 let isExporting = false;
+function setExportProgress(message){
+    const msg = $("msg");
+    if(msg){ msg.style.color="#38bdf8"; msg.textContent="⏳ "+message; }
+}
+function nextPaint(){ return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 30))); }
 async function out(share){
     if(isExporting) return;
-    var b=build(); if(!b)return;
     isExporting = true;
     const btnSave = $("btnSave"), btnShare = $("btnShare");
-    if(btnSave) { btnSave.disabled = true; btnSave.textContent = "⏳ Processing..."; }
-    if(btnShare) { btnShare.disabled = true; btnShare.textContent = "⏳ Processing..."; }
+    if(btnSave) { btnSave.disabled = true; btnSave.textContent = "⏳ Please wait..."; }
+    if(btnShare) { btnShare.disabled = true; btnShare.textContent = "⏳ Please wait..."; }
     try {
-        const blob = b.p.output("blob");
+        setExportProgress("Preparing inspection photos...");
+        await nextPaint();
+        await preparePdfImages();
+        setExportProgress("Generating PDF. Please keep the app open...");
+        await nextPaint();
+        let b = build();
+        if(!b) return;
+        let blob = b.p.output("blob");
+        const maxPdfBytes = 20*1024*1024;
+        if(blob.size > maxPdfBytes){
+            setExportProgress("PDF is above 20 MB. Reducing checklist quality to 85%...");
+            await nextPaint();
+            await reduceChecklistForPdfLimit(0.85);
+            setExportProgress("Rebuilding PDF at 85% checklist quality...");
+            await nextPaint();
+            b = build();
+            if(!b) throw new Error("Could not rebuild PDF at 85% quality.");
+            blob = b.p.output("blob");
+        }
+        if(blob.size > maxPdfBytes){
+            setExportProgress("Still above 20 MB. Reducing checklist quality to 82%...");
+            await nextPaint();
+            await reduceChecklistForPdfLimit(0.82);
+            setExportProgress("Rebuilding PDF at 82% checklist quality...");
+            await nextPaint();
+            b = build();
+            if(!b) throw new Error("Could not rebuild PDF at 82% quality.");
+            blob = b.p.output("blob");
+        }
+        if(blob.size > maxPdfBytes) throw new Error("PDF is still above 20 MB after reducing checklist quality to 82%. Please remove some photos or create separate reports.");
         const f = new File([blob], b.f, {type:"application/pdf"});
-        // Make sure the current inspection is durable before creating its upload queue item.
         const submittedRevision = await saveDraftNow();
-
-        // Start native sharing during the original tap (before awaiting network operations).
         let sharePromise = null;
         if (share && navigator.canShare && navigator.canShare({files:[f]})) {
-            try { sharePromise = navigator.share({files:[f], title:"PDI Report - "+b.f}); }
-            catch(e) { console.error("Share start error:", e); }
+            const shareText = [
+                "PDI Inspection Report",
+                "Chassis Number: " + b.ch,
+                "Vehicle Model: " + b.m,
+                "Inspector: " + b.insp,
+                "Remarks:",
+                b.remarks
+            ].join("\n");
+            setExportProgress("PDF ready. Opening Share options...");
+            await nextPaint();
+            try { sharePromise = navigator.share({files:[f], title:"PDI Report - "+b.f, text:shareText}); }
+            catch(e) { console.error("Share start error:",e); }
         } else if (!share) {
+            setExportProgress("PDF ready. Saving file to your phone...");
+            await nextPaint();
             const a=document.createElement("a");
             const objectUrl=URL.createObjectURL(blob);
             a.href=objectUrl; a.download=b.f; a.click();
-            setTimeout(()=>URL.revokeObjectURL(objectUrl), 30000);
+            setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
+        } else {
+            setExportProgress("PDF ready. Your phone does not support file sharing here; saving the PDF instead...");
+            await nextPaint();
+            const a=document.createElement("a");
+            const objectUrl=URL.createObjectURL(blob);
+            a.href=objectUrl; a.download=b.f; a.click();
+            setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
         }
-
-        // uploadDirectly first saves the PDF into IndexedDB, then attempts the server upload.
-        await uploadDirectly(b.ch, b.m, b.insp, b.remarks, blob, b.f, submittedRevision);
-        if (sharePromise) {
+        setExportProgress("Saving report and sending it to Telegram / Google Sheet...");
+        await nextPaint();
+        await uploadDirectly(b.ch,b.m,b.insp,b.remarks,blob,b.f,submittedRevision);
+        if(sharePromise){
             try { await sharePromise; }
-            catch(e) { if(e.name!=="AbortError") console.error("Share error:",e); }
+            catch(e){ if(e.name!=="AbortError") console.error("Share error:",e); }
         }
     } catch(err) {
-        console.error("Report preparation error:", err);
+        console.error("Report preparation error:",err);
         const msg=$("msg");
-        if(msg){msg.style.color="#ef4444";msg.textContent="⚠️ Report could not be safely queued: "+(err.message||"Storage error")+". Do not close this page until saved.";}
-        alert("PDF/queue save failed. Please check phone storage and try again. Your inspection draft has not been cleared.");
+        if(msg){msg.style.color="#ef4444";msg.textContent="⚠️ "+(err.message||"PDF preparation failed")+". Your inspection draft has not been cleared.";}
+        alert("PDF could not be completed. Please try again. Your inspection draft has not been cleared.");
     } finally {
         isExporting = false;
         if(btnSave) { btnSave.disabled = false; btnSave.textContent = "💾 Save PDF"; }
