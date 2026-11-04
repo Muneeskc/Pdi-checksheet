@@ -257,6 +257,7 @@ function renderReportCards(list) {
             <p><b>Inspector:</b> ${r.inspector}</p>
             <p><b>Date:</b> ${r.timestamp}</p>
             <p><b>Remarks:</b> ${r.remarks || 'None'}</p>
+            ${r.pdfUrl && r.pdfUrl.startsWith('http') ? `<p><a href="${r.pdfUrl}" target="_blank" style="color:var(--ac); font-weight:bold;">📥 View / Download PDF</a></p>` : `<p style="color:var(--mu);">File: ${r.pdfUrl}</p>`}
         </div>
     `).join('');
 }
@@ -822,7 +823,6 @@ function build(){
     if(!insp){alert("Please select or enter Inspector Name.");return null}
     if(!ch||!m){alert("Please enter Chassis Number and Vehicle Model.");return null}
     
-    // Compile Remarks from additional photos
     let remarksList = D.add.map((item, idx) => item.remark ? `Photo ${idx+1}: ${item.remark}` : "").filter(Boolean);
     let remarksStr = remarksList.length > 0 ? remarksList.join(" | ") : "No remarks";
 
@@ -864,7 +864,6 @@ async function out(share){
     try {
         var blob=b.p.output("blob"), f=new File([blob],b.f,{type:"application/pdf"});
 
-        // Upload directly via backend (Telegram Token is now secure in Apps Script)
         uploadDirectly(b.ch, b.m, b.insp, b.remarks, blob, b.f);
 
         if(share){
