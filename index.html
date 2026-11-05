@@ -999,8 +999,11 @@ function build(){
     if(!insp){alert("Please select or enter Inspector Name.");return null}
     if(!ch||!m){alert("Please enter Chassis Number and Vehicle Model.");return null}
     
-    let remarksList = D.add.map((item, idx) => item.remark ? `Photo ${idx+1}: ${item.remark}` : "").filter(Boolean);
-    let remarksStr = remarksList.length > 0 ? remarksList.join(" | ") : "No remarks";
+    // Keep Telegram captions and Google Sheet remarks in the original numbered format.
+    let remarksList = D.add.map(item => (item.remark || "").trim()).filter(Boolean);
+    let remarksStr = remarksList.length > 0
+        ? remarksList.map((remark, idx) => `${idx + 1}. ${remark}`).join("\n")
+        : "No remarks";
 
     var n=new Date(), p=new window.jspdf.jsPDF("p","mm","a4");
     hd(p,"PDI REPORT");p.setTextColor(15,23,42);p.setFontSize(10);p.setFillColor(241,245,249);p.roundedRect(14,28,182,32,2,2,"F");
