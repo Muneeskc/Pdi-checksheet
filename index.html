@@ -525,32 +525,54 @@ async function sendToBackend(chassis, model, inspector, remarks, pdfBase64, file
     return true;
 }
 
+async function clearDraftAfterDirectUpload(revision) {
+    await dbReady;
+    if (!db) return false;
+    const tx = db.transaction("inspection_draft", "readwrite");
+    const store = tx.objectStore("inspection_draft");
+    const req = store.get("current");
+    let cleared = false;
+    req.onsuccess = () => {
+        const current = req.result;
+        if (current && Number(current.revision) === Number(revision)) {
+            store.delete("current");
+            cleared = true;
+        }
+    };
+    await idbDone(tx);
+    if (cleared) resetInspectionUI();
+    return cleared;
+}
+
 async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName, draftRevisionAtSubmit) {
     const msg = $("msg");
     const dTime = new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN");
     if (!blob || !blob.size) throw new Error("PDF is empty; upload cancelled");
-    if (msg) { msg.style.color = "#38bdf8"; msg.textContent = "⏳ Saving report to phone, then sending to Telegram..."; }
+    if (msg) { msg.style.color = "#38bdf8"; msg.textContent = "⏳ Preparing PDF and sending directly to Telegram & Google Sheet..."; }
 
-    // Persist the PDF in IndexedDB BEFORE starting the network request.
+    // Apps Script expects base64 in its JSON request. Do not save a successful
+    // upload's PDF to the local pending queue; queue it only when offline/failing.
     const base64 = await blobToBase64(blob);
-    const sheetRemarks = remarks; // Same original numbered format for Google Sheet and Telegram.
-    const queueId = await saveToQueue({ chassis, model, inspector, remarks, sheetRemarks, base64, fileName, dTime, draftRevision: draftRevisionAtSubmit, createdAt: Date.now() });
+    const sheetRemarks = remarks; // Keep the original numbered format for Telegram and Google Sheet.
 
     if (!navigator.onLine) {
-        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ No internet. PDF saved on this phone; it will send automatically when internet returns and the app is open."; }
+        await saveToQueue({ chassis, model, inspector, remarks, sheetRemarks, base64, fileName, dTime, draftRevision: draftRevisionAtSubmit, createdAt: Date.now() });
+        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ No internet. Report saved temporarily; it will send when internet returns and the app is open."; }
         return { queued: true, success: false };
     }
     try {
         const ok = await sendToBackend(chassis, model, inspector, remarks, base64, fileName, dTime, sheetRemarks);
         if (ok) {
-            await completeQueuedUpload(queueId, draftRevisionAtSubmit);
-            if (msg) { msg.style.color = "#10b981"; msg.textContent = "✓ Telegram & Google Sheet confirmed. New inspection is ready."; }
+            await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
+            if (msg) { msg.style.color = "#10b981"; msg.textContent = "✓ Report sent to Telegram & Google Sheet. New inspection is ready."; }
             return { queued: false, success: true };
         }
         throw new Error("Upload was not confirmed by server");
     } catch (err) {
         console.error("Upload error:", err);
-        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Not confirmed yet. PDF is safely queued on this phone and will retry when internet returns."; }
+        // Preserve the report locally only if direct delivery fails, for safe retry.
+        await saveToQueue({ chassis, model, inspector, remarks, sheetRemarks, base64, fileName, dTime, draftRevision: draftRevisionAtSubmit, createdAt: Date.now() });
+        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Sending failed. Report saved temporarily and will retry when internet returns."; }
         return { queued: true, success: false, error: err };
     }
 }
@@ -1125,7 +1147,7 @@ async function out(share){
         // Make sure the current inspection is durable before creating its upload queue item.
         const submittedRevision = await saveDraftNow();
 
-        // uploadDirectly first saves the PDF into IndexedDB, then attempts the server upload.
+        // Send directly; retain a local pending copy only if delivery is offline or fails.
         await uploadDirectly(b.ch, b.m, b.insp, b.remarks, blob, b.f, submittedRevision);
         if (clipboardPromise) await clipboardPromise;
         if (sharePromise) {
