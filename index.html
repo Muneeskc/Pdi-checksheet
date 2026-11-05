@@ -31,9 +31,6 @@ body{margin:0;background:var(--bg);color:var(--tx);padding:12px;display:flex;jus
 .app{width:100%;max-width:520px;background:var(--cd);border-radius:20px;padding:18px;border:1px solid var(--bd)}
 h1{font-size:20px;color:var(--ac);text-align:center;margin:0}.sub{text-align:center;font-size:13px;color:var(--mu);margin:4px 0 16px}
 
-/* Small app-only credit; this element is not included in generated PDFs. */
-.app-footer{text-align:center;font-size:10px;letter-spacing:.3px;color:var(--mu);opacity:.8;margin:18px 0 2px}
-
 /* Tab Navigation */
 .tab-nav{display:flex;gap:8px;margin-bottom:16px;background:var(--in);padding:4px;border-radius:12px;border:1px solid var(--bd)}
 .tab-btn{flex:1;padding:10px;border-radius:8px;border:0;background:transparent;color:var(--mu);font-weight:700;font-size:13px;cursor:pointer}
@@ -113,7 +110,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 </head>
 <body>
 <div class="app">
-<h1>Vehicle Inward &amp; Inspection Pro</h1>
+<h1>Vehicle Inward &amp; Inspection Pro</h1><div class="sub">Tata Motors Yard Management System</div>
 
 <!-- TAB NAVIGATION -->
 <div class="tab-nav">
@@ -128,7 +125,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     <div class="row"><button onclick="pick(1,sticker)">📷 Take Photo</button><button class="gl" onclick="pick(0,sticker)">🖼️ From Gallery</button></div>
     <div id="st"></div></div>
 
-    <div class="box"><label>1. Select Vehicle Model</label><select id="ms" onchange="onM()"><option value="">-- Choose Vehicle Model --</option></select>
+    <div class="box"><label>1. Select Tata Model</label><select id="ms" onchange="onM()"><option value="">-- Choose Vehicle Model --</option></select>
     <div class="row" style="margin:-2px 0 10px"><input type="text" id="nm" placeholder="New model name" style="margin:0"><button onclick="addM()">＋ Add</button></div>
     <input type="text" id="M" placeholder="Model" style="margin:0"></div>
 
@@ -172,9 +169,6 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
         <button id="btnSave" style="background:#10b981" onclick="out(0)">💾 Save PDF</button>
         <button id="btnShare" style="background:#2563eb" onclick="out(1)">📤 Share PDF</button>
     </div>
-    <div style="text-align:center;margin:10px 0 4px;">
-        <button id="btnCancelInspection" type="button" onclick="cancelCurrentInspection()" style="background:transparent;color:#fca5a5;border:1px solid #ef4444;padding:8px 14px;font-size:13px;font-weight:800;border-radius:9px;">Cancel Current Inspection</button>
-    </div>
     <p id="msg" style="font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;margin-top:14px;min-height:24px;word-break:break-word;"></p>
 </div>
 
@@ -189,7 +183,6 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     </div>
 </div>
 
-    <div class="app-footer">Designed by Munees KC</div>
 </div>
 
 <!-- CROPPER SCANNER MODAL -->
@@ -198,7 +191,10 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     <div class="cb"><img id="ci"></div>
     <div class="cf">
         <div style="text-align:center;font-size:12px;color:var(--mu);font-weight:bold;">Enhance Filter:</div>
-        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">            <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
+        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+            <button type="button" class="filter-btn active" id="f-orig" onclick="setFilter('original')">Original (No Filter)</button>
+            <button type="button" class="filter-btn" id="f-magic" onclick="setFilter('enhance')">⚡ Magic Color</button>
+            <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
             <button type="button" class="filter-btn" id="f-bw" onclick="setFilter('bw')">Pure White (Scan)</button>
         </div>
         <div style="display:flex;gap:6px;justify-content:space-between;align-items:center;margin-top:6px;">
@@ -253,7 +249,7 @@ function renderReportCards(list) {
         container.innerHTML = '<p style="text-align:center; color:var(--mu);">No reports found.</p>';
         return;
     }
-
+    
     container.innerHTML = list.map(r => `
         <div class="report-card">
             <h4>🔢 ${r.chassisNo}</h4>
@@ -278,7 +274,7 @@ function filterReports() {
         let model = (r.model || "").toString().toUpperCase();
         let inspector = (r.inspector || "").toString().toUpperCase();
         let remarks = (r.remarks || "").toString().toUpperCase();
-
+        
         return chassis.includes(q) || model.includes(q) || inspector.includes(q) || remarks.includes(q);
     });
     renderReportCards(filtered);
@@ -477,61 +473,6 @@ async function removeFromQueue(id) {
 }
 
 let isSyncing = false;
-async function cancelCurrentInspection() {
-    const ok = confirm("Cancel this current vehicle inspection?\n\nAll details and photos entered for this vehicle will be cleared from this phone. No PDF will be generated, and nothing will be sent to Telegram or Google Sheet. Previously uploaded reports and any other pending uploads will not be deleted.");
-    if (!ok) return;
-    try {
-        await dbReady;
-        // Wait for any autosave already in progress, then delete only the current draft.
-        await draftSaveChain;
-        draftRevision++;
-        if (db) {
-            const tx = db.transaction("inspection_draft", "readwrite");
-            tx.objectStore("inspection_draft").delete("current");
-            await idbDone(tx);
-        }
-        resetInspectionUI();
-        const msg = $("msg");
-        if (msg) {
-            msg.style.color = "#fca5a5";
-            msg.textContent = "Current inspection cancelled. No PDF was generated or uploaded.";
-        }
-        alert("Current inspection cancelled. No PDF was generated and nothing was sent to Telegram or Google Sheet. Previous reports are safe.");
-    } catch (err) {
-        console.error("Cancel current inspection failed:", err);
-        alert("Could not cancel this inspection safely. Please try again.");
-    }
-}
-
-async function cancelPendingPdf() {
-    await dbReady;
-    if (!db) { alert("Phone storage is not available. No pending PDF was cancelled."); return; }
-    if (isSyncing) {
-        alert("A PDF upload is currently in progress. Please wait until it finishes, then try again if it is still pending.");
-        return;
-    }
-    try {
-        const readTx = db.transaction("pending_uploads", "readonly");
-        const items = await idbRequest(readTx.objectStore("pending_uploads").getAll());
-        if (!items || !items.length) {
-            alert("There is no pending PDF to cancel.");
-            return;
-        }
-        const ok = confirm("Cancel " + items.length + " pending PDF upload(s) saved on this phone?\n\nThis removes only pending uploads. It does not delete reports already sent to Telegram / Google Sheet, and it does not clear your current inspection form.");
-        if (!ok) return;
-        const tx = db.transaction("pending_uploads", "readwrite");
-        const store = tx.objectStore("pending_uploads");
-        items.forEach(item => { if (item && item.id != null) store.delete(item.id); });
-        await idbDone(tx);
-        const msg = $("msg");
-        if (msg) { msg.style.color = "#fca5a5"; msg.textContent = "Pending PDF upload cancelled. Current inspection data was kept."; }
-        alert("Pending PDF upload cancelled. Your current inspection data has been kept.");
-    } catch (err) {
-        console.error("Cancel pending PDF failed:", err);
-        alert("Could not cancel the pending PDF. Please try again.");
-    }
-}
-
 async function processPendingQueue() {
     await dbReady;
     if (isSyncing || !navigator.onLine || !db) return;
@@ -619,7 +560,7 @@ function smartCompress(fileOrBase64, maxDim=1200, quality=0.75) {
         let img = new Image();
         let isBlob = typeof fileOrBase64 !== 'string';
         let src = isBlob ? URL.createObjectURL(fileOrBase64) : fileOrBase64;
-
+        
         img.onload = () => {
             try {
                 let w = img.naturalWidth || img.width;
@@ -652,22 +593,8 @@ function smartCompress(fileOrBase64, maxDim=1200, quality=0.75) {
             if (isBlob) URL.revokeObjectURL(src);
             resolve(src);
         };
-        img.src = src;    });
-}
-
-// Keep original photo quality for normal inspections. Only lower checklist quality
-// from 90% to 82% when the generated PDF exceeds the 20 MB limit.
-async function preparePdfImages(){
-    // Images are already compressed when selected. Preserve their current quality here.
-    return;
-}
-
-async function reduceChecklistForPdfLimit(targetQuality){
-    const quality = Number(targetQuality || 0.85);
-    for(let i=0;i<(D.ck||[]).length;i++){
-        if(D.ck[i]) D.ck[i]=await smartCompress(D.ck[i],1600,quality);
-    }
-    scheduleDraftSave();
+        img.src = src;
+    });
 }
 
 // ================= APP ORIGINAL LOGIC =================
@@ -760,7 +687,7 @@ function pick(cam, cb, multi, isCk){
     i.accept = "image/*";
     if(cam) i.setAttribute("capture", "environment");
     if(multi) i.multiple = true;
-
+    
     i.onchange = async function(){
         if(!i.files || i.files.length === 0) return;
         for (let f of Array.from(i.files)) {
@@ -773,10 +700,10 @@ function pick(cam, cb, multi, isCk){
 
 async function rd(f,cb,isCk){
     if(isCk){
-        let scaled = await smartCompress(f, 1600, 0.90);
+        let scaled = await smartCompress(f, 2000, 0.95);
         cb(scaled);
     } else {
-        let compactImage = await smartCompress(f, 1200, 0.75);
+        let compactImage = await smartCompress(f, 1100, 0.70);
         cb(compactImage);
     }
 }
@@ -858,7 +785,7 @@ ICON.fl=S0+TV+mk(34,9,'FL')+'</svg>';ICON.fr=S0+TV+mk(66,9,'FR')+'</svg>';ICON.r
 
 SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});
 
-card("docs", D.doc, "f22", "Form 22", "📄", 0);
+card("docs", D.doc, "f22", "Form 22", "📄", 1);
 card("docs", D.doc, "pen", "Chassis Print", "📋", 0);
 
 // ADDED PHOTOS WITH REMARKS SUPPORT (Only for Additional Photos)
@@ -866,19 +793,21 @@ function gal(id,arr,edit){
     var c=$(id);c.innerHTML="";
     arr.forEach(function(item,i){
         var wrap = document.createElement("div");
-        wrap.className = "th-item";        var t=document.createElement("div");
+        wrap.className = "th-item";
+        
+        var t=document.createElement("div");
         t.className="th";
         t.innerHTML='<img src="'+item.url+'"><button class="x">✕</button>'+(edit?'<button class="e">Edit</button>':'');
         t.querySelector(".x").onclick=function(){arr.splice(i,1);gal(id,arr,edit);scheduleDraftSave();};
         if(edit) t.querySelector(".e").onclick=function(){ei=i;openC(D.ko[i]||item.url)};
-
+        
         var inp = document.createElement("input");
         inp.type = "text";
         inp.placeholder = "Enter remark for this photo...";
         inp.value = item.remark || "";
         inp.style.margin = "0";
         inp.oninput = function(){ item.remark = inp.value; scheduleDraftSave(); };
-
+        
         wrap.appendChild(t);
         wrap.appendChild(inp);
         c.appendChild(wrap);
@@ -891,7 +820,7 @@ function galChecklist(id, arr){
     arr.forEach(function(item, i){
         var wrap = document.createElement("div");
         wrap.className = "th-item";
-
+        
         var t = document.createElement("div");
         t.className = "th";
         t.style.width = "72px";
@@ -899,7 +828,7 @@ function galChecklist(id, arr){
         t.innerHTML = '<img src="'+item+'"><button class="x">✕</button><button class="e">Edit</button>';
         t.querySelector(".x").onclick = function(){ arr.splice(i, 1); galChecklist(id, arr); scheduleDraftSave(); };
         t.querySelector(".e").onclick = function(){ ei = i; openC(D.ko[i] || item); };
-
+        
         wrap.appendChild(t);
         c.appendChild(wrap);
     });
@@ -911,159 +840,70 @@ async function sticker(u){
     D.sticker = u;
     scheduleDraftSave();
     $("spv").innerHTML = '<img src="'+u+'">';
-    $("st").style.color = "#d97706";
-    $("st").textContent = "Scanning sticker for MAT chassis number...";
-
-    try {
-        var im = new Image();
-        await new Promise(function(resolve, reject){
-            im.onload = resolve;
-            im.onerror = function(){ reject(new Error("Sticker image could not be opened.")); };
-            im.src = u;
-            if(im.complete && im.naturalWidth) resolve();
-        });
-
-        var vinCode = await scan(im);
-        if(vinCode){
-            $("C").value = vinCode;
-            scheduleDraftSave();
-            $("st").style.color = "#10b981";
-            $("st").textContent = "✓ MAT chassis detected: " + vinCode;
-        } else {
-            $("st").style.color = "#d97706";
-            $("st").textContent = "MAT chassis barcode not found. Please retake the sticker photo or enter the number manually.";
-        }
-    } catch(err) {
-        console.error("Sticker scan error:", err);
-        $("st").style.color = "#ef4444";
-        $("st").textContent = "Could not scan this photo. Please retake it or enter the chassis number manually.";
-    }
-}
-
-// Every Tata chassis number in this yard starts with MAT and is 17 characters long.
-function getMatChassis(text){
-    var clean = String(text || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    var match = clean.match(/MAT[A-Z0-9]{14}/);
-    return match ? match[0] : null;
-}
-
-// ZXing fallback: decode all barcodes it can find in a canvas, not just the first one.
-function readWithZXing(canvas){
-    if(!window.ZXing || !ZXing.RGBLuminanceSource || !ZXing.BinaryBitmap || !ZXing.HybridBinarizer || !ZXing.MultiFormatReader) return [];
-    try {
-        var ctx = canvas.getContext("2d", {willReadFrequently:true});
-        var pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        var source = new ZXing.RGBLuminanceSource(pixels.data, canvas.width, canvas.height);
-        var bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(source));
-        var hints = new Map();
-        hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
-            ZXing.BarcodeFormat.CODE_128,
-            ZXing.BarcodeFormat.CODE_39,
-            ZXing.BarcodeFormat.QR_CODE,
-            ZXing.BarcodeFormat.DATA_MATRIX,
-            ZXing.BarcodeFormat.ITF,
-            ZXing.BarcodeFormat.CODABAR,
-            ZXing.BarcodeFormat.EAN_13,
-            ZXing.BarcodeFormat.EAN_8,
-            ZXing.BarcodeFormat.UPC_A,
-            ZXing.BarcodeFormat.UPC_E
-        ].filter(Boolean));
-
-        var reader = new ZXing.MultiFormatReader();
-        reader.setHints(hints);
-        var texts = [];
-        if(ZXing.GenericMultipleBarcodeReader){
-            try {
-                var multi = new ZXing.GenericMultipleBarcodeReader(reader);
-                var results = multi.decodeMultiple(bitmap, hints) || [];
-                results.forEach(function(result){ if(result && result.getText) texts.push(result.getText()); });
-            } catch(multiErr) {
-                // Fall back to a single decode on this image region; other regions are checked too.
-                try { reader.reset(); } catch(e){}
-                try {
-                    var one = reader.decode(bitmap);
-                    if(one && one.getText) texts.push(one.getText());
-                } catch(oneErr){}
-            }
-        } else {
-            try {
-                var one = reader.decode(bitmap);
-                if(one && one.getText) texts.push(one.getText());
-            } catch(oneErr){}
-        }
-        return texts;
-    } catch(err) {
-        console.warn("ZXing image decode failed:", err);
-        return [];
+    $("st").textContent = "Scanning barcode...";
+    var im = new Image();
+    im.src = u;
+    await new Promise(function(r){ im.onload = r; });
+    
+    var vinCode = await scan(im);
+    if(vinCode){
+        $("C").value = vinCode;
+        scheduleDraftSave();
+        $("st").style.color = "#10b981";
+        $("st").textContent = "✓ Chassis detected: " + vinCode + ". Select model below.";
+    } else {
+        $("st").style.color = "#d97706";
+        $("st").textContent = "Barcode not read or no 'MAT' code found. Enter manually.";
     }
 }
 
 async function scan(im){
-    var angles = [0, 90, 180, 270];
-    var detector = null;
-    if("BarcodeDetector" in window){
-        try {
-            var supported = await BarcodeDetector.getSupportedFormats();
-            var wanted = ["code_128", "code_39", "qr_code", "data_matrix", "itf", "codabar", "ean_13", "ean_8", "upc_a", "upc_e"];
-            var formats = wanted.filter(function(f){ return supported.indexOf(f) !== -1; });
-            if(formats.length) detector = new BarcodeDetector({formats:formats});
-        } catch(e) { detector = null; }
-    }
-
-    for(var a = 0; a < angles.length; a++){
+    var ang = [0, 90, 270];
+    for(var a = 0; a < ang.length; a++){
         var c = document.createElement("canvas");
-        var scale = Math.min(1, 1800 / Math.max(im.naturalWidth || im.width, im.naturalHeight || im.height));
-        var w = Math.max(1, Math.round((im.naturalWidth || im.width) * scale));
-        var h = Math.max(1, Math.round((im.naturalHeight || im.height) * scale));
-        var sideways = angles[a] === 90 || angles[a] === 270;
-        c.width = sideways ? h : w;
-        c.height = sideways ? w : h;
-        var g = c.getContext("2d", {willReadFrequently:true});
-        g.translate(c.width/2, c.height/2);
-        g.rotate(angles[a] * Math.PI / 180);
-        g.drawImage(im, -w/2, -h/2, w, h);
-
-        // Native BarcodeDetector returns an array, so check every barcode on the sticker.
-        if(detector){
-            try {
-                var found = await detector.detect(c);
-                for(var i=0; i<found.length; i++){
-                    var detected = getMatChassis(found[i].rawValue);
-                    if(detected){ c.width=1; c.height=1; return detected; }
+        var s = Math.min(1, 1600 / Math.max(im.width, im.height));
+        var w = im.width * s;
+        var h = im.height * s;
+        var sw = ang[a] != 0;
+        c.width = sw ? h : w;
+        c.height = sw ? w : h;
+        
+        var g = c.getContext("2d");
+        g.translate(c.width / 2, c.height / 2);
+        g.rotate(ang[a] * Math.PI / 180);
+        g.drawImage(im, -w / 2, -h / 2, w, h);
+        
+        try {
+            if ("BarcodeDetector" in window) {
+                var detector = new BarcodeDetector({ formats: ["code_128", "code_39", "qr_code", "data_matrix"] });
+                var results = await detector.detect(c);
+                if (results && results.length > 0) {
+                    for (let item of results) {
+                        let cleanText = (item.rawValue || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+                        let match = cleanText.match(/MAT[A-Z0-9]+/);
+                        if (match) { c.width = 1; c.height = 1; return match[0]; }
+                    }
                 }
-            } catch(e) { console.warn("Native barcode scan failed on this rotation:", e); }
-        }
-
-        // iPhone Safari and other browsers without BarcodeDetector use ZXing.
-        // Scan the whole sticker and overlapping quarters so a second barcode is not missed.
-        var regions = [{x:0,y:0,w:c.width,h:c.height}];
-        var midX = Math.floor(c.width/2), midY = Math.floor(c.height/2);
-        var padX = Math.floor(c.width*0.06), padY = Math.floor(c.height*0.06);
-        regions.push(
-            {x:0,y:0,w:Math.min(c.width,midX+padX),h:Math.min(c.height,midY+padY)},
-            {x:Math.max(0,midX-padX),y:0,w:c.width-Math.max(0,midX-padX),h:Math.min(c.height,midY+padY)},
-            {x:0,y:Math.max(0,midY-padY),w:Math.min(c.width,midX+padX),h:c.height-Math.max(0,midY-padY)},
-            {x:Math.max(0,midX-padX),y:Math.max(0,midY-padY),w:c.width-Math.max(0,midX-padX),h:c.height-Math.max(0,midY-padY)}
-        );
-
-        for(var r=0; r<regions.length; r++){
-            var region=regions[r];
-            if(region.w<40 || region.h<40) continue;
-            var tile=document.createElement("canvas");
-            tile.width=region.w; tile.height=region.h;
-            tile.getContext("2d", {willReadFrequently:true}).drawImage(c,region.x,region.y,region.w,region.h,0,0,region.w,region.h);
-            var texts=readWithZXing(tile);
-            for(var t=0; t<texts.length; t++){
-                var chassis=getMatChassis(texts[t]);
-                if(chassis){ c.width=1; c.height=1; tile.width=1; tile.height=1; return chassis; }
             }
-            tile.width=1; tile.height=1;
+        } catch(e){}
+        
+        if (window.ZXing) {
+            try {
+                var reader = new ZXing.BrowserMultiFormatReader();
+                var zRes = await reader.decodeFromCanvas(c);
+                if (zRes) {
+                    let cleanText = zRes.getText().replace(/[^A-Z0-9]/gi, "").toUpperCase();
+                    let match = cleanText.match(/MAT[A-Z0-9]+/);
+                    if (match) { c.width = 1; c.height = 1; return match[0]; }
+                }
+            } catch(e){}
         }
-        c.width=1; c.height=1;
+        c.width = 1; c.height = 1;
     }
     return null;
-}function box(im){
+}
+
+function box(im){
     var cv = document.createElement("canvas"), W = 240, H = Math.round(im.naturalHeight * W / im.naturalWidth);
     cv.width = W; cv.height = H;
     var g = cv.getContext("2d");
@@ -1100,13 +940,7 @@ async function scan(im){
     return { x: Math.round(x0 * sx), y: Math.round(y0 * sy), width: Math.round(cropW), height: Math.round(cropH) };
 }
 
-function newCk(u){
-    // Add checklist images directly; do not depend on the cropper modal to save them.
-    D.ck.push(u);
-    D.ko.push(u);
-    galChecklist("gc", D.ck);
-    scheduleDraftSave();
-}
+function newCk(u){ei=-1;openC(u)}
 
 window.addEventListener('popstate', function(e){
     if($("cm").style.display === "flex"){ closeC(false); }
@@ -1164,12 +998,9 @@ function build(){
     var insp = $("inspName").value.trim();
     if(!insp){alert("Please select or enter Inspector Name.");return null}
     if(!ch||!m){alert("Please enter Chassis Number and Vehicle Model.");return null}
-
-    // Keep Telegram / Google Sheet remarks clean: numbered points only, no "Photo" prefix.
-    let remarksList = D.add.map(item => (item.remark || "").trim()).filter(Boolean);
-    let remarksStr = remarksList.length > 0
-        ? remarksList.map((remark, idx) => `${idx + 1}. ${remark}`).join("\n")
-        : "No remarks";
+    
+    let remarksList = D.add.map((item, idx) => item.remark ? `Photo ${idx+1}: ${item.remark}` : "").filter(Boolean);
+    let remarksStr = remarksList.length > 0 ? remarksList.join(" | ") : "No remarks";
 
     var n=new Date(), p=new window.jspdf.jsPDF("p","mm","a4");
     hd(p,"PDI REPORT");p.setTextColor(15,23,42);p.setFontSize(10);p.setFillColor(241,245,249);p.roundedRect(14,28,182,32,2,2,"F");
@@ -1179,10 +1010,45 @@ function build(){
         ["Inspector / Technician:", insp],
         ["Inspection Date:",n.toLocaleDateString("en-GB")+" "+n.toLocaleTimeString("en-IN")]
     ].forEach(function(r,i){p.setFont(undefined,"bold");p.text(r[0],18,35+i*7);p.setFont(undefined,"normal");p.text(r[1],68,35+i*7)});
-
+    
     p.setFont(undefined,"bold");p.setFontSize(11);p.setTextColor(2,132,199);p.text("Vehicle Photos",14,68);
-    var L=SIX.map(function(s,i){return[D.six[s[0]],(i+1)+". "+s[1]]}).concat(D.add.map(function(item,i){return[item.url,"Additional Photo "+(i+1)+(item.remark ? " ("+item.remark+")":"")]}));
-    L.forEach(function(it,i){var x=14+(i%3)*62,y;if(i<12)y=74+Math.floor(i/3)*50;else{var j=i-12;if(j%15==0){p.addPage();hd(p,"PDI REPORT",20)}y=36+Math.floor((j%15)/3)*50}img(p,it[0],x,y,58,42,it[1],false)});
+    // Keep the eight standard vehicle-angle photos in the existing compact grid.
+    SIX.forEach(function(s,i){
+        var x=14+(i%3)*62, y=74+Math.floor(i/3)*50;
+        img(p,D.six[s[0]],x,y,58,42,(i+1)+". "+s[1],false);
+    });
+
+    // Additional photos are laid out separately so each remark sits directly
+    // below its own photo and wraps inside that photo's column without collisions.
+    if(D.add && D.add.length){
+        p.addPage(); hd(p,"PDI REPORT");
+        p.setFont(undefined,"bold"); p.setFontSize(11); p.setTextColor(2,132,199);
+        p.text("Additional Inspection Photos",14,32);
+        var addY=42;
+        for(var ai=0; ai<D.add.length; ai+=3){
+            var rowItems=D.add.slice(ai,ai+3);
+            var rowLines=rowItems.map(function(item){
+                var remark=(item.remark||"").trim();
+                return remark ? p.splitTextToSize("Remark: "+remark,58) : [];
+            });
+            var maxLines=Math.max(1,...rowLines.map(function(lines){return lines.length;}));
+            var rowHeight=47+maxLines*4.2+7;
+            if(addY+rowHeight>282){p.addPage();hd(p,"PDI REPORT");addY=32;}
+            rowItems.forEach(function(item,ri){
+                var x=14+ri*62;
+                p.setFont(undefined,"bold");p.setFontSize(8);p.setTextColor(71,85,105);
+                p.text("Additional Photo "+(ai+ri+1),x,addY);
+                if(item.url) p.addImage(item.url,"JPEG",x,addY+3,58,36,undefined,"FAST");
+                else {p.rect(x,addY+3,58,36,"S");p.text("No Photo",x+18,addY+22);}
+                var lines=rowLines[ri];
+                if(lines.length){
+                    p.setFont(undefined,"normal");p.setFontSize(7.5);p.setTextColor(51,65,85);
+                    p.text(lines,x,addY+43,{lineHeightFactor:1.15});
+                }
+            });
+            addY+=rowHeight;
+        }
+    }
 
     if(D.sticker||D.doc.f22||D.doc.pen||D.battery){
         p.addPage();hd(p,"PDI REPORT");p.setFontSize(11);p.setTextColor(2,132,199);p.text("2. Documents & Battery Inspection: "+ch,14,34);
@@ -1197,113 +1063,42 @@ function build(){
 }
 
 let isExporting = false;
-function setExportProgress(message){
-    const msg = $("msg");
-    if(msg){ msg.style.color="#38bdf8"; msg.textContent="⏳ "+message; }
-}
-function nextPaint(){ return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 30))); }
 async function out(share){
     if(isExporting) return;
+    var b=build(); if(!b)return;
     isExporting = true;
     const btnSave = $("btnSave"), btnShare = $("btnShare");
-    if(btnSave) { btnSave.disabled = true; btnSave.textContent = "⏳ Please wait..."; }
-    if(btnShare) { btnShare.disabled = true; btnShare.textContent = "⏳ Please wait..."; }
+    if(btnSave) { btnSave.disabled = true; btnSave.textContent = "⏳ Processing..."; }
+    if(btnShare) { btnShare.disabled = true; btnShare.textContent = "⏳ Processing..."; }
     try {
-        setExportProgress("Preparing inspection photos...");
-        await nextPaint();
-        await preparePdfImages();
-        setExportProgress("Generating PDF. Please keep the app open...");
-        await nextPaint();
-        let b = build();
-        if(!b) return;
-        let blob = b.p.output("blob");
-        const maxPdfBytes = 20*1024*1024;
-        if(blob.size > maxPdfBytes){
-            setExportProgress("PDF is above 20 MB. Reducing checklist quality to 85%...");
-            await nextPaint();
-            await reduceChecklistForPdfLimit(0.85);
-            setExportProgress("Rebuilding PDF at 85% checklist quality...");
-            await nextPaint();
-            b = build();
-            if(!b) throw new Error("Could not rebuild PDF at 85% quality.");
-            blob = b.p.output("blob");
-        }
-        if(blob.size > maxPdfBytes){
-            setExportProgress("Still above 20 MB. Reducing checklist quality to 82%...");
-            await nextPaint();
-            await reduceChecklistForPdfLimit(0.82);
-            setExportProgress("Rebuilding PDF at 82% checklist quality...");
-            await nextPaint();
-            b = build();
-            if(!b) throw new Error("Could not rebuild PDF at 82% quality.");
-            blob = b.p.output("blob");
-        }
-        if(blob.size > maxPdfBytes) throw new Error("PDF is still above 20 MB after reducing checklist quality to 82%. Please remove some photos or create separate reports.");
+        const blob = b.p.output("blob");
         const f = new File([blob], b.f, {type:"application/pdf"});
+        // Make sure the current inspection is durable before creating its upload queue item.
         const submittedRevision = await saveDraftNow();
+
+        // Start native sharing during the original tap (before awaiting network operations).
         let sharePromise = null;
-        let shareText = [
-            "PDI INSPECTION REPORT",
-            "Chassis Number: " + b.ch,
-            "Vehicle Model: " + b.m,
-            "Inspector: " + b.insp,
-            "",
-            "REMARKS:",
-            b.remarks
-        ].join("\n");
-        let detailsCopied = false;
         if (share && navigator.canShare && navigator.canShare({files:[f]})) {
-            // Copy details during the original Share-button action. Android may block a second
-            // Web Share dialog after the PDF share completes, so the user can paste the text.
-            try {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    await navigator.clipboard.writeText(shareText);
-                    detailsCopied = true;
-                }
-            } catch(copyBeforeShareError) {
-                console.warn("Could not pre-copy inspection details:", copyBeforeShareError);
-            }
-            setExportProgress("PDF ready. Choose WhatsApp and send the PDF. Details are prepared for the next message...");
-            await nextPaint();
             try { sharePromise = navigator.share({files:[f], title:"PDI Report - "+b.f}); }
-            catch(e) { console.error("Share start error:",e); }
+            catch(e) { console.error("Share start error:", e); }
         } else if (!share) {
-            setExportProgress("PDF ready. Saving file to your phone...");
-            await nextPaint();
             const a=document.createElement("a");
             const objectUrl=URL.createObjectURL(blob);
             a.href=objectUrl; a.download=b.f; a.click();
-            setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
-        } else {
-            setExportProgress("PDF ready. Your phone does not support file sharing here; saving the PDF instead...");
-            await nextPaint();
-            const a=document.createElement("a");
-            const objectUrl=URL.createObjectURL(blob);
-            a.href=objectUrl; a.download=b.f; a.click();
-            setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
+            setTimeout(()=>URL.revokeObjectURL(objectUrl), 30000);
         }
-        setExportProgress("Saving report and sending it to Telegram / Google Sheet...");
-        await nextPaint();
-        await uploadDirectly(b.ch,b.m,b.insp,b.remarks,blob,b.f,submittedRevision);
-        if(sharePromise){
-            let pdfShareCompleted = false;
-            try { await sharePromise; pdfShareCompleted = true; }
-            catch(e){ if(e.name!=="AbortError") console.error("PDF share error:",e); }
-            if(pdfShareCompleted){
-                if(detailsCopied){
-                    setExportProgress("PDF share finished. Inspection details are copied. Open the same WhatsApp chat and paste them as the next message.");
-                    alert("PDF share is complete. Vehicle details and remarks are copied. Open the SAME WhatsApp chat, tap the message box, paste, and press Send.");
-                } else {
-                    setExportProgress("PDF share finished. Automatic copy was unavailable; send the details separately.");
-                    alert("PDF share is complete. Automatic copy was unavailable. Please return to the app and copy the inspection details, then send them in the same WhatsApp chat.");
-                }
-            }
+
+        // uploadDirectly first saves the PDF into IndexedDB, then attempts the server upload.
+        await uploadDirectly(b.ch, b.m, b.insp, b.remarks, blob, b.f, submittedRevision);
+        if (sharePromise) {
+            try { await sharePromise; }
+            catch(e) { if(e.name!=="AbortError") console.error("Share error:",e); }
         }
     } catch(err) {
-        console.error("Report preparation error:",err);
+        console.error("Report preparation error:", err);
         const msg=$("msg");
-        if(msg){msg.style.color="#ef4444";msg.textContent="⚠️ "+(err.message||"PDF preparation failed")+". Your inspection draft has not been cleared.";}
-        alert("PDF could not be completed. Please try again. Your inspection draft has not been cleared.");
+        if(msg){msg.style.color="#ef4444";msg.textContent="⚠️ Report could not be safely queued: "+(err.message||"Storage error")+". Do not close this page until saved.";}
+        alert("PDF/queue save failed. Please check phone storage and try again. Your inspection draft has not been cleared.");
     } finally {
         isExporting = false;
         if(btnSave) { btnSave.disabled = false; btnSave.textContent = "💾 Save PDF"; }
