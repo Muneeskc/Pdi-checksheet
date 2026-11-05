@@ -485,7 +485,7 @@ async function processPendingQueue() {
             if (!navigator.onLine) break;
             try {
                 if (!it.base64) throw new Error("Queued PDF data is missing");
-                const success = await sendToBackend(it.chassis, it.model, it.inspector, it.remarks, it.base64, it.fileName, it.dTime);
+                const success = await sendToBackend(it.chassis, it.model, it.inspector, it.remarks, it.base64, it.fileName, it.dTime, it.sheetRemarks || it.remarks);
                 if (success) {
                     await completeQueuedUpload(it.id, it.draftRevision);
                     // The queue record is removed only after server confirmation; newer drafts are preserved.
@@ -507,14 +507,14 @@ window.addEventListener("online", () => { processPendingQueue(); });
 window.addEventListener("pageshow", () => { if (navigator.onLine) processPendingQueue(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && navigator.onLine) processPendingQueue(); });
 
-async function sendToBackend(chassis, model, inspector, remarks, pdfBase64, fileName, dTime) {
+async function sendToBackend(chassis, model, inspector, remarks, pdfBase64, fileName, dTime, sheetRemarks = remarks) {
     if (!navigator.onLine) throw new Error("Internet connection unavailable");
     const res = await fetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
             dateTime: dTime, chassis, model, inspector,
-            status: "COMPLETED", remarks, fileName, pdfBase64
+            status: "COMPLETED", remarks, sheetRemarks, fileName, pdfBase64
         })
     });
     if (!res.ok) throw new Error("Server HTTP " + res.status);
@@ -533,14 +533,15 @@ async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName
 
     // Persist the PDF in IndexedDB BEFORE starting the network request.
     const base64 = await blobToBase64(blob);
-    const queueId = await saveToQueue({ chassis, model, inspector, remarks, base64, fileName, dTime, draftRevision: draftRevisionAtSubmit, createdAt: Date.now() });
+    const sheetRemarks = remarks; // Same original numbered format for Google Sheet and Telegram.
+    const queueId = await saveToQueue({ chassis, model, inspector, remarks, sheetRemarks, base64, fileName, dTime, draftRevision: draftRevisionAtSubmit, createdAt: Date.now() });
 
     if (!navigator.onLine) {
         if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ No internet. PDF saved on this phone; it will send automatically when internet returns and the app is open."; }
         return { queued: true, success: false };
     }
     try {
-        const ok = await sendToBackend(chassis, model, inspector, remarks, base64, fileName, dTime);
+        const ok = await sendToBackend(chassis, model, inspector, remarks, base64, fileName, dTime, sheetRemarks);
         if (ok) {
             await completeQueuedUpload(queueId, draftRevisionAtSubmit);
             if (msg) { msg.style.color = "#10b981"; msg.textContent = "✓ Telegram & Google Sheet confirmed. New inspection is ready."; }
@@ -1076,13 +1077,43 @@ async function out(share){
     try {
         const blob = b.p.output("blob");
         const f = new File([blob], b.f, {type:"application/pdf"});
-        // Make sure the current inspection is durable before creating its upload queue item.
-        const submittedRevision = await saveDraftNow();
+        // Prepare the same complete caption style used for sharing the inspection details.
+        const shareText = [
+            "PDI INSPECTION REPORT",
+            "Chassis Number: " + b.ch,
+            "Vehicle Model: " + b.m,
+            "Inspector: " + b.insp,
+            "",
+            "REMARKS:",
+            b.remarks
+        ].join("\n");
 
-        // Start native sharing during the original tap (before awaiting network operations).
+        // Copy the full caption from the original Share-button tap. If WhatsApp
+        // does not attach text with the PDF, the user can paste it into the chat.
+        let clipboardPromise = null;
+        let detailsCopied = false;
+        if (share) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                clipboardPromise = navigator.clipboard.writeText(shareText).then(() => {
+                    detailsCopied = true;
+                }).catch(err => {
+                    console.warn("Clipboard API unavailable:", err);
+                    return false;
+                });
+            } else {
+                try {
+                    const ta = document.createElement("textarea");
+                    ta.value = shareText; ta.style.position = "fixed"; ta.style.opacity = "0";
+                    document.body.appendChild(ta); ta.select();
+                    detailsCopied = document.execCommand("copy"); ta.remove();
+                } catch (err) { console.warn("Clipboard fallback failed:", err); }
+            }
+        }
+
+        // Start native sharing during the original tap so Android can offer WhatsApp.
         let sharePromise = null;
         if (share && navigator.canShare && navigator.canShare({files:[f]})) {
-            try { sharePromise = navigator.share({files:[f], title:"PDI Report - "+b.f}); }
+            try { sharePromise = navigator.share({files:[f], title:"PDI Report - "+b.f, text:shareText}); }
             catch(e) { console.error("Share start error:", e); }
         } else if (!share) {
             const a=document.createElement("a");
@@ -1091,11 +1122,24 @@ async function out(share){
             setTimeout(()=>URL.revokeObjectURL(objectUrl), 30000);
         }
 
+        // Make sure the current inspection is durable before creating its upload queue item.
+        const submittedRevision = await saveDraftNow();
+
         // uploadDirectly first saves the PDF into IndexedDB, then attempts the server upload.
         await uploadDirectly(b.ch, b.m, b.insp, b.remarks, blob, b.f, submittedRevision);
+        if (clipboardPromise) await clipboardPromise;
         if (sharePromise) {
-            try { await sharePromise; }
+            let pdfShareCompleted = false;
+            try { await sharePromise; pdfShareCompleted = true; }
             catch(e) { if(e.name!=="AbortError") console.error("Share error:",e); }
+            if (pdfShareCompleted) {
+                if (clipboardPromise) await clipboardPromise;
+                if (detailsCopied) {
+                    alert("PDF share complete. Vehicle details and numbered remarks are copied. Open the SAME WhatsApp chat, tap the message box, paste, and press Send.");
+                } else {
+                    alert("PDF share complete. Automatic caption copy was unavailable. Please copy the inspection details manually.");
+                }
+            }
         }
     } catch(err) {
         console.error("Report preparation error:", err);
