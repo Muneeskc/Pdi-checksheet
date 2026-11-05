@@ -243,6 +243,19 @@ async function fetchReports() {
     }
 }
 
+function formatReportDateTime(value) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    const datePart = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Asia/Kolkata", day: "2-digit", month: "2-digit", year: "numeric"
+    }).format(date);
+    const timePart = new Intl.DateTimeFormat("en-IN", {
+        timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true
+    }).format(date);
+    return `${datePart} | ${timePart}`;
+}
+
 function renderReportCards(list) {
     const container = $("reportsContainer");
     if(!list || list.length === 0) {
@@ -255,7 +268,7 @@ function renderReportCards(list) {
             <h4>🔢 ${r.chassisNo}</h4>
             <p><b>Model:</b> ${r.model}</p>
             <p><b>Inspector:</b> ${r.inspector}</p>
-            <p><b>Date:</b> ${r.timestamp}</p>
+            <p><b>Date:</b> ${formatReportDateTime(r.timestamp)}</p>
             <p><b>Remarks:</b> ${r.remarks || 'None'}</p>
             ${r.pdfUrl && r.pdfUrl.startsWith('http') ? `<p><a href="${r.pdfUrl}" target="_blank" style="color:var(--ac); font-weight:bold;">📥 View / Download PDF</a></p>` : `<p style="color:var(--mu);">File: ${r.pdfUrl}</p>`}
         </div>
