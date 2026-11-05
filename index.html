@@ -1018,33 +1018,33 @@ function build(){
         img(p,D.six[s[0]],x,y,58,42,(i+1)+". "+s[1],false);
     });
 
-    // Additional photos are laid out separately so each remark sits directly
-    // below its own photo and wraps inside that photo's column without collisions.
+    // Additional photos: two-column cards. Each remark is printed directly
+    // beneath its own photo, with wrapping and dynamic row height to prevent overlap.
     if(D.add && D.add.length){
         p.addPage(); hd(p,"PDI REPORT");
         p.setFont(undefined,"bold"); p.setFontSize(11); p.setTextColor(2,132,199);
         p.text("Additional Inspection Photos",14,32);
         var addY=42;
-        for(var ai=0; ai<D.add.length; ai+=3){
-            var rowItems=D.add.slice(ai,ai+3);
+        var cardW=86, imageH=54, colGap=10, rowGap=9;
+        for(var ai=0; ai<D.add.length; ai+=2){
+            var rowItems=D.add.slice(ai,ai+2);
             var rowLines=rowItems.map(function(item){
                 var remark=(item.remark||"").trim();
-                return remark ? p.splitTextToSize("Remark: "+remark,58) : [];
+                if(!remark) return ["Remark: —"];
+                p.setFont(undefined,"normal"); p.setFontSize(8);
+                return p.splitTextToSize("Remark: "+remark,cardW);
             });
-            var maxLines=Math.max(1,...rowLines.map(function(lines){return lines.length;}));
-            var rowHeight=47+maxLines*4.2+7;
+            var maxLines=Math.max.apply(null,rowLines.map(function(lines){return lines.length;}));
+            var rowHeight=5+imageH+4+maxLines*4.2+rowGap;
             if(addY+rowHeight>282){p.addPage();hd(p,"PDI REPORT");addY=32;}
             rowItems.forEach(function(item,ri){
-                var x=14+ri*62;
-                p.setFont(undefined,"bold");p.setFontSize(8);p.setTextColor(71,85,105);
-                p.text("Additional Photo "+(ai+ri+1),x,addY);
-                if(item.url) p.addImage(item.url,"JPEG",x,addY+3,58,36,undefined,"FAST");
-                else {p.rect(x,addY+3,58,36,"S");p.text("No Photo",x+18,addY+22);}
-                var lines=rowLines[ri];
-                if(lines.length){
-                    p.setFont(undefined,"normal");p.setFontSize(7.5);p.setTextColor(51,65,85);
-                    p.text(lines,x,addY+43,{lineHeightFactor:1.15});
-                }
+                var x=14+ri*(cardW+colGap);
+                p.setFont(undefined,"bold"); p.setFontSize(9); p.setTextColor(71,85,105);
+                p.text("Additional Photo "+(ai+ri+1),x,addY+4);
+                if(item.url) p.addImage(item.url,"JPEG",x,addY+7,cardW,imageH,undefined,"FAST");
+                else {p.rect(x,addY+7,cardW,imageH,"S");p.text("No Photo",x+30,addY+35);}
+                p.setFont(undefined,"normal"); p.setFontSize(8); p.setTextColor(51,65,85);
+                p.text(rowLines[ri],x,addY+7+imageH+4,{lineHeightFactor:1.15});
             });
             addY+=rowHeight;
         }
