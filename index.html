@@ -1134,11 +1134,8 @@ async function out(share){
             catch(e) { if(e.name!=="AbortError") console.error("Share error:",e); }
             if (pdfShareCompleted) {
                 if (clipboardPromise) await clipboardPromise;
-                if (detailsCopied) {
-                    alert("PDF share complete. Vehicle details and numbered remarks are copied. Open the SAME WhatsApp chat, tap the message box, paste, and press Send.");
-                } else {
-                    alert("PDF share complete. Automatic caption copy was unavailable. Please copy the inspection details manually.");
-                }
+                // No extra instructional message: keep the WhatsApp message area clean.
+                // The PDI caption itself is copied to the clipboard above.
             }
         }
     } catch(err) {
