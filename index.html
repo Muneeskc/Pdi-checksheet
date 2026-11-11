@@ -69,7 +69,6 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 .report-card h4{margin:0 0 6px;color:var(--ac);font-size:15px}
 .report-card p{margin:2px 0;font-size:12px;color:var(--mu)}
 
-
 /* Share processing popup */
 #progressModal{display:none;position:fixed;inset:0;z-index:120;background:rgba(2,6,23,.78);align-items:center;justify-content:center;padding:18px}
 #progressCard{width:100%;max-width:390px;background:var(--cd);border:1px solid var(--bd);border-radius:18px;padding:20px;box-shadow:0 18px 60px rgba(0,0,0,.35)}
@@ -234,7 +233,6 @@ function renderReportCards(list) {
     `).join('');
 }
 
-// FULLY FIXED SEARCH FILTER FUNCTION
 function filterReports() {
     let q = $("reportSearchInput").value.toUpperCase().trim();
     if(!q) {
@@ -253,7 +251,6 @@ function filterReports() {
 }
 
 // ================= INDEXEDDB: OFFLINE QUEUE + LIVE DRAFT =================
-// Version 2 keeps the existing pending_uploads store and adds inspection_draft.
 let db = null;
 let dbReadyResolve;
 const dbReady = new Promise(resolve => { dbReadyResolve = resolve; });
@@ -275,10 +272,8 @@ reqDB.onsuccess = async (e) => {
     processPendingQueue();
 };
 reqDB.onerror = () => {
-    console.error("IndexedDB open failed:", reqDB.error);
     dbReadyResolve(null);
 };
-reqDB.onblocked = () => console.warn("PDI database upgrade is blocked by another open tab.");
 
 function idbRequest(req) {
     return new Promise((resolve, reject) => {
@@ -313,7 +308,7 @@ function collectDraft() {
 }
 async function saveDraftNow() {
     await dbReady;
-    if (!db) throw new Error("Local storage is not ready. Please wait and try again.");
+    if (!db) return;
     const snapshot = collectDraft();
     const revision = ++draftRevision;
     snapshot.revision = revision;
@@ -323,22 +318,12 @@ async function saveDraftNow() {
         await idbDone(tx);
     });
     await draftSaveChain;
-    const msg = $("msg");
-    if (msg && msg.textContent.indexOf("Upload") < 0 && msg.textContent.indexOf("Delivered") < 0) {
-        msg.style.color = "#10b981";
-        msg.textContent = "✓ Draft saved on this phone";
-    }
     return revision;
 }
 function scheduleDraftSave() {
-    saveDraftNow().catch(err => {
-        console.error("Auto-save failed:", err);
-        const msg = $("msg");
-        if (msg) { msg.style.color = "#ef4444"; msg.textContent = "⚠️ Local save failed. Keep this page open and check phone storage."; }
-    });
+    saveDraftNow().catch(err => console.error("Auto-save failed:", err));
 }
 function resetInspectionUI() {
-    // Preserve D.six / D.doc object identities used by the photo-card callbacks.
     Object.keys(D.six).forEach(k => delete D.six[k]);
     Object.keys(D.doc).forEach(k => delete D.doc[k]);
     D.add = []; D.ck = []; D.ko = []; D.sticker = null; D.battery = null;
@@ -358,7 +343,7 @@ function resetInspectionUI() {
 }
 async function completeQueuedUpload(queueId, revision) {
     await dbReady;
-    if (!db || !queueId) throw new Error("Upload queue record is unavailable");
+    if (!db || !queueId) return;
     const tx = db.transaction(["pending_uploads", "inspection_draft"], "readwrite");
     const queueStore = tx.objectStore("pending_uploads");
     const draftStore = tx.objectStore("inspection_draft");
@@ -372,7 +357,6 @@ async function completeQueuedUpload(queueId, revision) {
         }
         queueStore.delete(queueId);
     };
-    getDraft.onerror = () => tx.abort();
     await idbDone(tx);
     if (clearedCurrentDraft) resetInspectionUI();
     return clearedCurrentDraft;
@@ -382,8 +366,6 @@ async function restoreDraft() {
     const tx = db.transaction("inspection_draft", "readonly");
     const saved = await idbRequest(tx.objectStore("inspection_draft").get("current"));
     if (!saved || !saved.data) return;
-    // Keep the original D.six and D.doc object identities because photo-card callbacks
-    // hold references to them. Replace their contents instead of replacing the objects.
     Object.keys(D.six).forEach(k => delete D.six[k]);
     Object.keys(D.doc).forEach(k => delete D.doc[k]);
     Object.assign(D.six, saved.data.six || {});
@@ -400,7 +382,6 @@ async function restoreDraft() {
         const el = $(id);
         if (el) el.value = saved.values[id];
     });
-    // Rebuild model and inspector selectors without overwriting restored text fields.
     if ($("ms") && saved.values && saved.values.ms) $("ms").value = saved.values.ms;
     if ($("inspSelect") && saved.values && saved.values.inspSelect) $("inspSelect").value = saved.values.inspSelect;
     document.querySelectorAll(".card[data-host][data-key]").forEach(cardEl => {
@@ -420,21 +401,13 @@ function blobToBase64(blob) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(reader.error || new Error("Could not prepare PDF"));
+        reader.onerror = () => reject(reader.error);
         reader.readAsDataURL(blob);
     });
 }
-function base64ToBlob(base64Data, type="application/pdf") {
-    const parts = String(base64Data || "").split(';base64,');
-    if (parts.length < 2) throw new Error("Saved PDF data is invalid");
-    const byteCharacters = atob(parts[1]);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) byteNumbers[i] = byteCharacters.charCodeAt(i);
-    return new Blob([new Uint8Array(byteNumbers)], { type });
-}
 async function saveToQueue(item) {
     await dbReady;
-    if (!db) throw new Error("Cannot save upload queue to phone storage");
+    if (!db) return;
     const tx = db.transaction("pending_uploads", "readwrite");
     const store = tx.objectStore("pending_uploads");
     const all = await idbRequest(store.getAll());
@@ -445,13 +418,6 @@ async function saveToQueue(item) {
     else { id = await idbRequest(store.add(item)); }
     await idbDone(tx);
     return id;
-}
-async function removeFromQueue(id) {
-    await dbReady;
-    if (!db || !id) return;
-    const tx = db.transaction("pending_uploads", "readwrite");
-    tx.objectStore("pending_uploads").delete(id);
-    await idbDone(tx);
 }
 
 let isSyncing = false;
@@ -466,7 +432,7 @@ async function processPendingQueue() {
         for (const it of (items || [])) {
             if (!navigator.onLine) break;
             try {
-                if (!it.base64) throw new Error("Queued PDF data is missing");
+                if (!it.base64) continue;
                 if (!it.reportId) { it.reportId = createReportId(); await saveToQueue(it); }
                 const result = await sendToBackend(it.chassis, it.model, it.inspector, it.remarks, it.base64, it.fileName, it.dTime, it.sheetRemarks || it.remarks, it.reportId, it.pdiTime || it.dTime);
                 if (result && result.accepted) {
@@ -477,17 +443,14 @@ async function processPendingQueue() {
                     }
                 }
             } catch (err) {
-                console.error("Queue sync error:", err);
-                if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Upload pending. Report is saved safely on this phone; it will retry when internet returns."; }
                 break;
             }
         }
-    } catch (err) { console.error("Queue read error:", err); }
+    } catch (err) {}
     finally { isSyncing = false; }
 }
 window.addEventListener("online", () => { processPendingQueue(); });
 window.addEventListener("pageshow", () => { if (navigator.onLine) processPendingQueue(); });
-document.addEventListener("visibilitychange", () => { if (!document.hidden && navigator.onLine) processPendingQueue(); });
 
 function createReportId(){
     if (window.crypto && crypto.randomUUID) return "PDI-" + crypto.randomUUID();
@@ -506,11 +469,11 @@ async function sendToBackend(chassis, model, inspector, remarks, pdfBase64, file
     });
     if (!res.ok) throw new Error("Server HTTP " + res.status);
     const raw = await res.text();
-    let json;
-    try { json = JSON.parse(raw); } catch (e) { throw new Error("Server did not return a valid response"); }
+    let json = JSON.parse(raw);
     if (json.status !== "success") throw new Error(json.message || "Server did not safely accept the report");
     return json;
 }
+
 async function clearDraftAfterDirectUpload(revision) {
     await dbReady;
     if (!db) return false;
@@ -564,7 +527,7 @@ async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName
     const msg = $("msg");
     const d = new Date(pdiTime);
     const dTime = d.toLocaleDateString("en-GB") + " " + d.toLocaleTimeString("en-IN");
-    if (!blob || !blob.size) throw new Error("PDF is empty; upload cancelled");
+    if (!blob || !blob.size) throw new Error("PDF is empty");
     if (msg) { msg.style.color = "#38bdf8"; msg.textContent = "⏳ Saving report and sending to Google Sheet & Telegram..."; }
     setProgress("sheet", "Saving the report details and PDF delivery record...");
     const base64 = await blobToBase64(blob);
@@ -574,26 +537,25 @@ async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName
     if (!navigator.onLine) {
         await saveToQueue(queueItem);
         await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
-        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ No internet. Report saved on this phone. It will sync automatically when internet returns and the app is opened."; }
-        finishProgress("No internet. The report is safely saved on this phone and will sync when the app is online.", "Saved offline");
+        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ No internet. Report saved on this phone. It will sync automatically when internet returns."; }
+        finishProgress("No internet. The report is safely saved on this phone.", "Saved offline");
         return { queued: true, success: false };
     }
     try {
         const result = await sendToBackend(chassis, model, inspector, remarks, base64, fileName, dTime, sheetRemarks, reportId, pdiTime);
-        setProgress("telegram", result.telegram === "Sent" ? "Telegram confirmed the PDF delivery." : "Google Sheets has saved the report. Telegram is retrying delivery automatically.", result.telegram === "Sent" ? "Telegram delivered" : "Telegram delivery pending");
+        setProgress("telegram", result.telegram === "Sent" ? "Telegram confirmed delivery." : "Google Sheets saved. Telegram is retrying.", result.telegram === "Sent" ? "Telegram delivered" : "Telegram pending");
         await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
         if (msg) {
             msg.style.color = result.telegram === "Sent" ? "#10b981" : "#d97706";
-            msg.textContent = result.telegram === "Sent" ? "✓ Report delivered to Google Sheet & Telegram." : "✓ Report safely saved in Google Sheet. Telegram delivery is pending; server will retry automatically.";
+            msg.textContent = result.telegram === "Sent" ? "✓ Report delivered to Google Sheet & Telegram." : "✓ Report safely saved in Google Sheet. Telegram delivery is pending.";
         }
-        finishProgress(result.telegram === "Sent" ? "Google Sheets and Telegram delivery are complete." : "Google Sheets saved the report. Telegram will keep retrying until delivery succeeds.", result.telegram === "Sent" ? "Report delivered" : "Telegram pending");
+        finishProgress(result.telegram === "Sent" ? "Google Sheets and Telegram complete." : "Google Sheets saved.", result.telegram === "Sent" ? "Report delivered" : "Telegram pending");
         return { queued: false, success: true, telegram: result.telegram };
     } catch (err) {
-        console.error("Upload error:", err);
         await saveToQueue(queueItem);
         await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
-        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Server could not confirm receipt. Report is saved on this phone and will retry automatically."; }
-        finishProgress("Server did not confirm receipt. The PDF is saved on this phone and will retry.", "Upload pending");
+        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Server could not confirm receipt. Report is saved on this phone."; }
+        finishProgress("Server did not confirm. PDF is saved on this phone.", "Upload pending");
         return { queued: true, success: false, error: err };
     }
 }
@@ -602,11 +564,8 @@ async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName
 var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null};
 let activeReportId = null;
 let activePdiTime = null;
-// Save every text/select edit to IndexedDB; photo callbacks also save immediately.
 document.addEventListener("input", function(ev){ if (ev.target && ev.target.closest && ev.target.closest("#tabCheck")) scheduleDraftSave(); });
 document.addEventListener("change", function(ev){ if (ev.target && ev.target.closest && ev.target.closest("#tabCheck")) scheduleDraftSave(); });
-window.addEventListener("pagehide", function(){ saveDraftNow().catch(function(e){console.error("Final draft save failed",e);}); });
-
 
 var savedInspectors = [];
 try { 
@@ -692,7 +651,7 @@ function pick(cam, cb, multi){
     i.onchange = async function(){
         if(!i.files || i.files.length === 0) return;
         try { for (let f of Array.from(i.files)) await rd(f, cb); }
-        catch(err) { console.error("Photo read failed:", err); alert("Could not load the selected photo. Please try again."); }
+        catch(err) { alert("Could not load the selected photo."); }
         i.value = "";
     };
     i.click();
@@ -702,18 +661,17 @@ async function rd(file, cb){
     let dataUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(reader.error || new Error("Could not read photo"));
+        reader.onerror = () => reject(reader.error);
         reader.readAsDataURL(file);
     });
-    // jsPDF supports JPEG/PNG. Convert WebP to lossless PNG only for PDF compatibility.
     if (file.type === "image/webp") {
         const image = new Image();
         dataUrl = await new Promise((resolve, reject) => {
             image.onload = () => {
                 const canvas = document.createElement("canvas"); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
-                canvas.getContext("2d").drawImage(image, 0, 0); resolve(canvas.toDataURL("image/png")); canvas.width = 1; canvas.height = 1;
+                canvas.getContext("2d").drawImage(image, 0, 0); resolve(canvas.toDataURL("image/png"));
             };
-            image.onerror = () => reject(new Error("WebP photo could not be decoded")); image.src = dataUrl;
+            image.onerror = () => reject(new Error("WebP decode failed")); image.src = dataUrl;
         });
     }
     cb(dataUrl);
@@ -749,55 +707,45 @@ MR='<g transform="translate(100 0) scale(-1 1)">',
 ICON={front:S0+FV+'<circle cx="31" cy="37" r="3.5" fill="#fde047"/><circle cx="69" cy="37" r="3.5" fill="#fde047"/></svg>',
 rear:S0+FV+'<rect x="24" y="34" width="11" height="5" rx="1.5" fill="#ef4444"/><rect x="65" y="34" width="11" height="5" rx="1.5" fill="#ef4444"/></svg>',
 left:S0+SH+'</svg>',right:S0+MR+SH+'</g></svg>',
-};
-var TV='<rect x="37" y="4" width="26" height="52" rx="9"/><rect x="40" y="13" width="20" height="9" rx="2" fill="#fff" opacity=".7"/><rect x="40" y="40" width="20" height="7" rx="2" fill="#fff" opacity=".7"/><rect x="33" y="10" width="4" height="9" rx="1"/><rect x="63" y="10" width="4" height="9" rx="1"/><rect x="33" y="41" width="4" height="9" rx="1"/><rect x="63" y="41" width="4" height="9" rx="1"/><text x="50" y="33" font-size="6" text-anchor="middle" fill="#fff" opacity=".8">TOP</text>',
+TV='<rect x="37" y="4" width="26" height="52" rx="9"/><rect x="40" y="13" width="20" height="9" rx="2" fill="#fff" opacity=".7"/><rect x="40" y="40" width="20" height="7" rx="2" fill="#fff" opacity=".7"/><rect x="33" y="10" width="4" height="9" rx="1"/><rect x="63" y="10" width="4" height="9" rx="1"/><rect x="33" y="41" width="4" height="9" rx="1"/><rect x="63" y="41" width="4" height="9" rx="1"/><text x="50" y="33" font-size="6" text-anchor="middle" fill="#fff" opacity=".8">TOP</text>',
 mk=function(x,y,t){return '<circle cx="'+x+'" cy="'+y+'" r="9" fill="#f97316" stroke="#fff" stroke-width="1.5"/><text x="'+x+'" y="'+(y+2.5)+'" font-size="7" font-weight="700" text-anchor="middle" fill="#fff">'+t+'</text>'};
 ICON.fl=S0+TV+mk(34,9,'FL')+'</svg>';ICON.fr=S0+TV+mk(66,9,'FR')+'</svg>';ICON.rl=S0+TV+mk(34,51,'RL')+'</svg>';ICON.rr=S0+TV+mk(66,51,'RR')+'</svg>';
 
 SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});
-
 card("docs", D.doc, "f22", "Form 22", "📄");
 card("docs", D.doc, "pen", "Chassis Print", "📋");
 
-// ADDED PHOTOS WITH REMARKS SUPPORT (Only for Additional Photos)
 function gal(id,arr,edit){
     var c=$(id);c.innerHTML="";
     arr.forEach(function(item,i){
         var wrap = document.createElement("div");
         wrap.className = "th-item";
-        
         var t=document.createElement("div");
         t.className="th";
         t.innerHTML='<img src="'+item.url+'"><button class="x">✕</button>';
         t.querySelector(".x").onclick=function(){arr.splice(i,1);gal(id,arr,edit);scheduleDraftSave();};
-        
         var inp = document.createElement("input");
         inp.type = "text";
         inp.placeholder = "Enter remark for this photo...";
         inp.value = item.remark || "";
         inp.style.margin = "0";
         inp.oninput = function(){ item.remark = inp.value; scheduleDraftSave(); };
-        
         wrap.appendChild(t);
         wrap.appendChild(inp);
         c.appendChild(wrap);
     });
 }
 
-// CHECKLIST GALLERY WITHOUT REMARKS (ONLY THUMBNAIL, EDIT, DELETE - NO REMARK INPUT)
 function galChecklist(id, arr){
     var c = $(id); c.innerHTML = "";
     arr.forEach(function(item, i){
         var wrap = document.createElement("div");
         wrap.className = "th-item";
-        
         var t = document.createElement("div");
         t.className = "th";
-        t.style.width = "72px";
-        t.style.height = "72px";
+        t.style.width = "72px"; t.style.height = "72px";
         t.innerHTML = '<img src="'+item+'"><button class="x">✕</button>';
         t.querySelector(".x").onclick = function(){ arr.splice(i, 1); galChecklist(id, arr); scheduleDraftSave(); };
-        
         wrap.appendChild(t);
         c.appendChild(wrap);
     });
@@ -813,16 +761,15 @@ async function sticker(u){
     var im = new Image();
     im.src = u;
     await new Promise(function(r){ im.onload = r; });
-    
     var vinCode = await scan(im);
     if(vinCode){
         $("C").value = vinCode;
         scheduleDraftSave();
         $("st").style.color = "#10b981";
-        $("st").textContent = "✓ Chassis detected: " + vinCode + ". Select model below.";
+        $("st").textContent = "✓ Chassis detected: " + vinCode;
     } else {
         $("st").style.color = "#d97706";
-        $("st").textContent = "Barcode not read or no 'MAT' code found. Enter manually.";
+        $("st").textContent = "Barcode not read. Enter manually.";
     }
 }
 
@@ -831,17 +778,13 @@ async function scan(im){
     for(var a = 0; a < ang.length; a++){
         var c = document.createElement("canvas");
         var s = Math.min(1, 1600 / Math.max(im.width, im.height));
-        var w = im.width * s;
-        var h = im.height * s;
+        var w = im.width * s, h = im.height * s;
         var sw = ang[a] != 0;
-        c.width = sw ? h : w;
-        c.height = sw ? w : h;
-        
+        c.width = sw ? h : w; c.height = sw ? w : h;
         var g = c.getContext("2d");
         g.translate(c.width / 2, c.height / 2);
         g.rotate(ang[a] * Math.PI / 180);
         g.drawImage(im, -w / 2, -h / 2, w, h);
-        
         try {
             if ("BarcodeDetector" in window) {
                 var detector = new BarcodeDetector({ formats: ["code_128", "code_39", "qr_code", "data_matrix"] });
@@ -855,7 +798,6 @@ async function scan(im){
                 }
             }
         } catch(e){}
-        
         if (window.ZXing) {
             try {
                 var reader = new ZXing.BrowserMultiFormatReader();
@@ -877,8 +819,7 @@ function newCk(u){ D.ck.push(u); galChecklist("gc", D.ck); scheduleDraftSave(); 
 function hd(p,t,s){p.setFillColor(15,23,42);p.rect(0,0,210,s||24,"F");p.setTextColor(255,255,255);p.setFontSize(14);p.setFont(undefined,"bold");p.text(t,14,16)}
 function pdfImageType(dataUrl){
     const s = String(dataUrl || "").slice(0,40).toLowerCase();
-    if (s.indexOf("image/png") >= 0) return "PNG";
-    if (s.indexOf("image/webp") >= 0) return "PNG";
+    if (s.indexOf("image/png") >= 0 || s.indexOf("image/webp") >= 0) return "PNG";
     return "JPEG";
 }
 function img(p,u,x,y,w,h,l,isChecklist){
@@ -894,7 +835,6 @@ function build(){
     if(!insp){alert("Please select or enter Inspector Name.");return null}
     if(!ch||!m){alert("Please enter Chassis Number and Vehicle Model.");return null}
     
-    // Keep Telegram captions and Google Sheet remarks in the original numbered format.
     let remarksList = D.add.map(item => (item.remark || "").trim()).filter(Boolean);
     let remarksStr = remarksList.length > 0
         ? remarksList.map((remark, idx) => `${idx + 1}. ${remark}`).join("\n")
@@ -910,14 +850,11 @@ function build(){
     ].forEach(function(r,i){p.setFont(undefined,"bold");p.text(r[0],18,35+i*7);p.setFont(undefined,"normal");p.text(r[1],68,35+i*7)});
     
     p.setFont(undefined,"bold");p.setFontSize(11);p.setTextColor(2,132,199);p.text("Vehicle Photos",14,68);
-    // Keep the eight standard vehicle-angle photos in the existing compact grid.
     SIX.forEach(function(s,i){
         var x=14+(i%3)*62, y=74+Math.floor(i/3)*50;
         img(p,D.six[s[0]],x,y,58,42,(i+1)+". "+s[1],false);
     });
 
-    // Additional photos: two-column cards. Each remark is printed directly
-    // beneath its own photo, with wrapping and dynamic row height to prevent overlap.
     if(D.add && D.add.length){
         p.addPage(); hd(p,"PDI REPORT");
         p.setFont(undefined,"bold"); p.setFontSize(11); p.setTextColor(2,132,199);
@@ -965,8 +902,6 @@ async function out(share){
     if(isExporting) return;
     if(share){
         if(!activeReportId) activeReportId = createReportId();
-        // PDI Submit Time is the exact moment the user taps Share, not draft-save or upload time.
-        // Once queued, this ISO timestamp travels with the report and is never replaced on retry.
         activePdiTime = new Date().toISOString();
     }
     var b=build(); if(!b)return;
@@ -976,7 +911,7 @@ async function out(share){
     try {
         const blob = b.p.output("blob");
         const f = new File([blob], b.f, {type:"application/pdf"});
-        showProgress("PDF generated. Preparing the Google Sheets and Telegram delivery steps...");
+        showProgress("PDF generated. Preparing delivery steps...");
         setProgress("pdf", "PDF generated successfully.");
         const shareText = [
             "PDI INSPECTION REPORT",
@@ -989,33 +924,24 @@ async function out(share){
         ].join("\n");
         let clipboardPromise = null;
         if (share && navigator.clipboard && navigator.clipboard.writeText) {
-            clipboardPromise = navigator.clipboard.writeText(shareText).catch(err => { console.warn("Clipboard API unavailable:", err); return false; });
-        } else if (share) {
-            try {
-                const ta = document.createElement("textarea"); ta.value = shareText; ta.style.position = "fixed"; ta.style.opacity = "0";
-                document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
-            } catch(err) { console.warn("Clipboard fallback failed:", err); }
+            clipboardPromise = navigator.clipboard.writeText(shareText).catch(err => { return false; });
         }
-        // Start Android's native share panel during the original button tap.
         let sharePromise = null;
         if (share && navigator.canShare && navigator.canShare({files:[f]})) {
             try { sharePromise = navigator.share({files:[f], title:"PDI Report - "+b.f, text:shareText}); }
-            catch(e) { console.error("Share start error:", e); }
+            catch(e) {}
         }
-        setProgress("whatsapp", "The phone sharing panel is available. The report is also being saved and delivered in the background.");
+        setProgress("whatsapp", "Opening sharing panel...");
         const submittedRevision = await saveDraftNow();
         await uploadDirectly(b.ch, b.m, b.insp, b.remarks, blob, b.f, submittedRevision, activeReportId, b.pdiTime);
         if (clipboardPromise) await clipboardPromise;
         if (sharePromise) {
             try { await sharePromise; }
-            catch(e) { if(e.name!=="AbortError") console.error("Share error:",e); }
+            catch(e) {}
         }
     } catch(err) {
-        console.error("Report preparation error:", err);
-        finishProgress("The report could not be safely queued. Your inspection draft is still on the phone.", "Could not complete");
-        const msg=$("msg");
-        if(msg){msg.style.color="#ef4444";msg.textContent="⚠️ Report could not be safely saved: "+(err.message||"Storage error")+". Do not close this page until saved.";}
-        alert("PDF/queue save failed. Please check phone storage and try again. Your inspection draft has not been cleared.");
+        finishProgress("Could not complete. Draft remains on phone.", "Error");
+        alert("Please check phone storage and try again.");
     } finally {
         isExporting = false;
         if(btnShare) { btnShare.disabled = false; btnShare.textContent = "📤 Share PDF"; }
@@ -1026,7 +952,7 @@ async function out(share){
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').then(reg => reg.update()).catch(err => console.error(err));
+    navigator.serviceWorker.register('./sw.js').then(reg => reg.update()).catch(err => {});
   });
 }
 </script>
