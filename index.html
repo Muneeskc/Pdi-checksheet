@@ -19,7 +19,6 @@
 <!-- Libraries -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.20.0/umd/index.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 
 <style>
 :root{--bg:#0b1120;--cd:#1e293b;--in:#0f172a;--bd:#475569;--tx:#f8fafc;--mu:#94a3b8;--ac:#38bdf8;--bl:#0284c7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -70,42 +69,16 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 .report-card h4{margin:0 0 6px;color:var(--ac);font-size:15px}
 .report-card p{margin:2px 0;font-size:12px;color:var(--mu)}
 
-/* Scanner Overlay */
-#cm{display:none;position:fixed;inset:0;background:#000;z-index:99;flex-direction:column}
-.ch{padding:10px 14px;background:#1e293b;color:#fff;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;padding-top:calc(10px + env(safe-area-inset-top,0px))}
-.cb{flex:1;min-height:0;padding:0;overflow:hidden;background:#000;position:relative}
-.cb img{display:block;max-width:100%}
-.cf{padding:10px;background:#1e293b;display:flex;gap:8px;flex-direction:column;padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
-.cf button{background:#334155;font-size:12px;padding:8px 10px}
-.cf .filter-btn{border:1px solid var(--bd);background:var(--in);color:var(--tx)}
-.cf .filter-btn.active{background:#0284c7;color:#fff;border-color:#38bdf8;font-weight:bold}
 
-/* REALISTIC LIVE DOCUMENT FILTERS */
-#cm.flt-original .cropper-view-box img, #cm.flt-original .cropper-canvas img { filter: none !important; }
-#cm.flt-enhance .cropper-view-box img, #cm.flt-enhance .cropper-canvas img { filter: contrast(1.2) brightness(1.05) !important; }
-#cm.flt-grayscale .cropper-view-box img, #cm.flt-grayscale .cropper-canvas img { filter: grayscale(100%) contrast(1.15) !important; }
-#cm.flt-bw .cropper-view-box img, #cm.flt-bw .cropper-canvas img { filter: grayscale(100%) contrast(1.8) !important; }
-
-/* Cropper Core CSS */
-.cropper-container{direction:ltr;font-size:0;line-height:0;position:relative;touch-action:none;user-select:none}
-.cropper-container img{display:block;height:100%;max-height:none!important;max-width:none!important;min-height:0!important;min-width:0!important;width:100%}
-.cropper-canvas,.cropper-crop-box,.cropper-drag-box,.cropper-modal,.cropper-wrap-box{inset:0;position:absolute}
-.cropper-canvas,.cropper-wrap-box{overflow:hidden}
-.cropper-drag-box{background:#fff;opacity:0}.cropper-modal{background:#000;opacity:.55}
-.cropper-view-box{display:block;height:100%;width:100%;outline:2px solid #38bdf8;overflow:hidden}
-.cropper-dashed{border:0 dashed #eee;display:block;opacity:.5;position:absolute}
-.dashed-h{border-bottom-width:1px;border-top-width:1px;height:33.3%;left:0;top:33.3%;width:100%}
-.dashed-v{border-left-width:1px;border-right-width:1px;height:100%;left:33.3%;top:0;width:33.3%}
-.cropper-face,.cropper-line,.cropper-point{display:block;height:100%;opacity:.1;position:absolute;width:100%}
-.cropper-face{background:#fff;left:0;top:0}.cropper-line{background:#38bdf8}
-.line-e{cursor:ew-resize;right:-6px;top:0;width:12px}.line-w{cursor:ew-resize;left:-6px;top:0;width:12px}
-.line-n{cursor:ns-resize;height:12px;left:0;top:-6px}.line-s{bottom:-6px;cursor:ns-resize;height:12px;left:0}
-.cropper-point{background:#38bdf8;height:24px;opacity:1;width:24px;border-radius:50%;border:2px solid #fff}
-.point-e{cursor:ew-resize;margin-top:-12px;right:-12px;top:50%}.point-w{cursor:ew-resize;left:-12px;margin-top:-12px;top:50%}
-.point-n{cursor:ns-resize;left:50%;margin-left:-12px;top:-12px}.point-s{bottom:-12px;cursor:ns-resize;left:50%;margin-left:-12px}
-.point-ne{cursor:nesw-resize;right:-12px;top:-12px}.point-nw{cursor:nwse-resize;left:-12px;top:-12px}
-.point-sw{bottom:-12px;cursor:nesw-resize;left:-12px}.point-se{bottom:-12px;cursor:nwse-resize;right:-12px}
-.cropper-move{cursor:move}.cropper-hidden{display:none!important}.cropper-hide{display:block;height:0;position:absolute;width:0}.cropper-invisible{opacity:0}
+/* Share processing popup */
+#progressModal{display:none;position:fixed;inset:0;z-index:120;background:rgba(2,6,23,.78);align-items:center;justify-content:center;padding:18px}
+#progressCard{width:100%;max-width:390px;background:var(--cd);border:1px solid var(--bd);border-radius:18px;padding:20px;box-shadow:0 18px 60px rgba(0,0,0,.35)}
+#progressTitle{font-size:17px;font-weight:800;color:var(--ac);margin-bottom:6px}
+#progressDetail{font-size:12px;color:var(--mu);margin-bottom:16px;line-height:1.5}
+.progress-step{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--bd);font-size:13px;color:var(--mu)}
+.progress-dot{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--in);border:1px solid var(--bd);font-size:11px;flex:0 0 22px}
+.progress-step.active{color:var(--tx);font-weight:700}.progress-step.active .progress-dot{background:var(--bl);border-color:var(--ac);color:#fff}
+.progress-step.done{color:#10b981}.progress-step.done .progress-dot{background:#10b981;color:#fff;border-color:#10b981}
 </style>
 </head>
 <body>
@@ -148,9 +121,9 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
         <div class="gal" id="ga"></div>
     </div>
 
-    <div class="sec"><span>📑 Checklist (Document Scanner &amp; Filter)</span><i>Auto-Crop &amp; HD Clarity</i></div>
+    <div class="sec"><span>📑 Checklist Photos</span><i>Original photos</i></div>
     <div class="box" style="text-align:center">
-        <div class="row"><button onclick="pick(1,newCk,0,true)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk,0,true)">🖼️ From Gallery</button></div>
+        <div class="row"><button onclick="pick(1,newCk)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk)">🖼️ From Gallery</button></div>
         <div class="gal" id="gc"></div>
     </div>
 
@@ -165,8 +138,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
     <div class="sec"><span>📋 Other Documents</span><i>Optional</i></div><div class="g2" id="docs"></div>
 
-    <div class="ft">
-        <button id="btnSave" style="background:#10b981" onclick="out(0)">💾 Save PDF</button>
+    <div class="ft" style="grid-template-columns:1fr">
         <button id="btnShare" style="background:#2563eb" onclick="out(1)">📤 Share PDF</button>
     </div>
     <p id="msg" style="font-size:14px;font-weight:bold;color:#38bdf8;text-align:center;margin-top:14px;min-height:24px;word-break:break-word;"></p>
@@ -185,28 +157,15 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
 </div>
 
-<!-- CROPPER SCANNER MODAL -->
-<div id="cm">
-    <div class="ch"><span>Checklist Scanner &amp; Enhance</span><button style="background:#ef4444" onclick="closeC(true)">✕ Cancel</button></div>
-    <div class="cb"><img id="ci"></div>
-    <div class="cf">
-        <div style="text-align:center;font-size:12px;color:var(--mu);font-weight:bold;">Enhance Filter:</div>
-        <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
-            <button type="button" class="filter-btn active" id="f-orig" onclick="setFilter('original')">Original (No Filter)</button>
-            <button type="button" class="filter-btn" id="f-magic" onclick="setFilter('enhance')">⚡ Magic Color</button>
-            <button type="button" class="filter-btn" id="f-gray" onclick="setFilter('grayscale')">Grayscale</button>
-            <button type="button" class="filter-btn" id="f-bw" onclick="setFilter('bw')">Pure White (Scan)</button>
-        </div>
-        <div style="display:flex;gap:6px;justify-content:space-between;align-items:center;margin-top:6px;">
-            <div style="display:flex;gap:5px;">
-                <button onclick="cr.rotate(-90)">↺ Left</button>
-                <button onclick="cr.rotate(90)">↻ Right</button>
-                <button style="background:#0284c7" onclick="auto()">⚡ Detect</button>
-                <button onclick="cr.reset()">Full</button>
-            </div>
-            <button style="background:#10b981;font-size:13px;padding:9px 18px" onclick="doneC()">✓ Done Crop</button>
-        </div>
-    </div>
+<div id="progressModal" role="status" aria-live="polite">
+  <div id="progressCard">
+    <div id="progressTitle">Processing PDI Report</div>
+    <div id="progressDetail">Please wait while your report is prepared and delivered.</div>
+    <div class="progress-step" id="progress-pdf"><span class="progress-dot">1</span><span>Generate PDF</span></div>
+    <div class="progress-step" id="progress-whatsapp"><span class="progress-dot">2</span><span>Open phone sharing panel</span></div>
+    <div class="progress-step" id="progress-sheet"><span class="progress-dot">3</span><span>Save details to Google Sheets</span></div>
+    <div class="progress-step" id="progress-telegram"><span class="progress-dot">4</span><span>Deliver PDF to Telegram</span></div>
+  </div>
 </div>
 
 <script>
@@ -346,6 +305,8 @@ function collectDraft() {
         key: "current",
         savedAt: Date.now(),
         revision: draftRevision,
+        reportId: activeReportId,
+        pdiTime: activePdiTime,
         values,
         data: JSON.parse(JSON.stringify(D))
     };
@@ -381,6 +342,7 @@ function resetInspectionUI() {
     Object.keys(D.six).forEach(k => delete D.six[k]);
     Object.keys(D.doc).forEach(k => delete D.doc[k]);
     D.add = []; D.ck = []; D.ko = []; D.sticker = null; D.battery = null;
+    activeReportId = null; activePdiTime = null;
     document.querySelectorAll("#tabCheck input, #tabCheck select, #tabCheck textarea").forEach(el => {
         if (el.type !== "file") el.value = "";
     });
@@ -432,6 +394,8 @@ async function restoreDraft() {
     D.sticker = saved.data.sticker || null;
     D.battery = saved.data.battery || null;
     draftRevision = Number(saved.revision || 0);
+    activeReportId = saved.reportId || null;
+    activePdiTime = saved.pdiTime || null;
     Object.keys(saved.values || {}).forEach(id => {
         const el = $(id);
         if (el) el.value = saved.values[id];
@@ -472,8 +436,13 @@ async function saveToQueue(item) {
     await dbReady;
     if (!db) throw new Error("Cannot save upload queue to phone storage");
     const tx = db.transaction("pending_uploads", "readwrite");
-    const req = tx.objectStore("pending_uploads").add(item);
-    const id = await idbRequest(req);
+    const store = tx.objectStore("pending_uploads");
+    const all = await idbRequest(store.getAll());
+    const existing = (all || []).find(x => x.reportId && x.reportId === item.reportId);
+    let id;
+    if (existing) { id = existing.id; store.put(Object.assign({}, existing, item, {id})); }
+    else if (item.id) { id = item.id; store.put(item); }
+    else { id = await idbRequest(store.add(item)); }
     await idbDone(tx);
     return id;
 }
@@ -498,46 +467,50 @@ async function processPendingQueue() {
             if (!navigator.onLine) break;
             try {
                 if (!it.base64) throw new Error("Queued PDF data is missing");
-                const success = await sendToBackend(it.chassis, it.model, it.inspector, it.remarks, it.base64, it.fileName, it.dTime, it.sheetRemarks || it.remarks);
-                if (success) {
+                if (!it.reportId) { it.reportId = createReportId(); await saveToQueue(it); }
+                const result = await sendToBackend(it.chassis, it.model, it.inspector, it.remarks, it.base64, it.fileName, it.dTime, it.sheetRemarks || it.remarks, it.reportId, it.pdiTime || it.dTime);
+                if (result && result.accepted) {
                     await completeQueuedUpload(it.id, it.draftRevision);
-                    // The queue record is removed only after server confirmation; newer drafts are preserved.
-                    if (msg) { msg.style.color = "#10b981"; msg.textContent = "✓ Report successfully delivered to Telegram & Sheet!"; }
+                    if (msg) {
+                        msg.style.color = result.telegram === "Sent" ? "#10b981" : "#d97706";
+                        msg.textContent = result.telegram === "Sent" ? "✓ Report delivered to Google Sheet & Telegram." : "✓ Report saved in Google Sheet. Telegram delivery is pending and will retry automatically.";
+                    }
                 }
             } catch (err) {
                 console.error("Queue sync error:", err);
-                if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Upload pending. Saved safely on this phone; will retry when internet returns."; }
+                if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Upload pending. Report is saved safely on this phone; it will retry when internet returns."; }
                 break;
             }
         }
-    } catch (err) {
-        console.error("Queue read error:", err);
-    } finally {
-        isSyncing = false;
-    }
+    } catch (err) { console.error("Queue read error:", err); }
+    finally { isSyncing = false; }
 }
 window.addEventListener("online", () => { processPendingQueue(); });
 window.addEventListener("pageshow", () => { if (navigator.onLine) processPendingQueue(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden && navigator.onLine) processPendingQueue(); });
 
-async function sendToBackend(chassis, model, inspector, remarks, pdfBase64, fileName, dTime, sheetRemarks = remarks) {
+function createReportId(){
+    if (window.crypto && crypto.randomUUID) return "PDI-" + crypto.randomUUID();
+    return "PDI-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2,12);
+}
+
+async function sendToBackend(chassis, model, inspector, remarks, pdfBase64, fileName, dTime, sheetRemarks = remarks, reportId, pdiTime) {
     if (!navigator.onLine) throw new Error("Internet connection unavailable");
     const res = await fetch(SCRIPT_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
-            dateTime: dTime, chassis, model, inspector,
-            status: "COMPLETED", remarks, sheetRemarks, fileName, pdfBase64
+            reportId, requestId: reportId, pdiTime, dateTime: dTime, chassis, model, inspector,
+            status: "PENDING", remarks, sheetRemarks, fileName, pdfBase64
         })
     });
     if (!res.ok) throw new Error("Server HTTP " + res.status);
     const raw = await res.text();
     let json;
-    try { json = JSON.parse(raw); } catch (e) { throw new Error("Server did not return a valid success response"); }
-    if (json.status !== "success") throw new Error(json.message || "Server did not confirm Telegram upload");
-    return true;
+    try { json = JSON.parse(raw); } catch (e) { throw new Error("Server did not return a valid response"); }
+    if (json.status !== "success") throw new Error(json.message || "Server did not safely accept the report");
+    return json;
 }
-
 async function clearDraftAfterDirectUpload(revision) {
     await dbReady;
     if (!db) return false;
@@ -557,90 +530,83 @@ async function clearDraftAfterDirectUpload(revision) {
     return cleared;
 }
 
-async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName, draftRevisionAtSubmit) {
-    const msg = $("msg");
-    const dTime = new Date().toLocaleDateString("en-GB") + " " + new Date().toLocaleTimeString("en-IN");
-    if (!blob || !blob.size) throw new Error("PDF is empty; upload cancelled");
-    if (msg) { msg.style.color = "#38bdf8"; msg.textContent = "⏳ Preparing PDF and sending directly to Telegram & Google Sheet..."; }
+function showProgress(detail){
+    const modal = $("progressModal");
+    if (!modal) return;
+    ["pdf","whatsapp","sheet","telegram"].forEach((k,i) => {
+        const el = $("progress-"+k); if(el){ el.classList.remove("active","done"); el.querySelector(".progress-dot").textContent = String(i+1); }
+    });
+    modal.style.display = "flex";
+    $("progressTitle").textContent = "Processing PDI Report";
+    $("progressDetail").textContent = detail || "Please wait...";
+}
+function setProgress(step, detail, title){
+    const order = ["pdf","whatsapp","sheet","telegram"];
+    const current = order.indexOf(step);
+    order.forEach((k,i) => {
+        const el = $("progress-"+k); if(!el) return;
+        el.classList.toggle("done", i < current);
+        el.classList.toggle("active", i === current);
+        el.querySelector(".progress-dot").textContent = i < current ? "✓" : String(i+1);
+    });
+    if (title) $("progressTitle").textContent = title;
+    if (detail) $("progressDetail").textContent = detail;
+}
+function finishProgress(detail, title){
+    const modal = $("progressModal");
+    if (!modal) return;
+    $("progressTitle").textContent = title || "Report processing";
+    $("progressDetail").textContent = detail || "";
+    setTimeout(() => { modal.style.display = "none"; }, 2600);
+}
 
-    // Apps Script expects base64 in its JSON request. Do not save a successful
-    // upload's PDF to the local pending queue; queue it only when offline/failing.
+async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName, draftRevisionAtSubmit, reportId, pdiTime) {
+    const msg = $("msg");
+    const d = new Date(pdiTime);
+    const dTime = d.toLocaleDateString("en-GB") + " " + d.toLocaleTimeString("en-IN");
+    if (!blob || !blob.size) throw new Error("PDF is empty; upload cancelled");
+    if (msg) { msg.style.color = "#38bdf8"; msg.textContent = "⏳ Saving report and sending to Google Sheet & Telegram..."; }
+    setProgress("sheet", "Saving the report details and PDF delivery record...");
     const base64 = await blobToBase64(blob);
-    const sheetRemarks = remarks; // Keep the original numbered format for Telegram and Google Sheet.
+    const sheetRemarks = remarks;
+    const queueItem = { reportId, pdiTime, chassis, model, inspector, remarks, sheetRemarks, base64, fileName, dTime, draftRevision: draftRevisionAtSubmit, createdAt: Date.now() };
 
     if (!navigator.onLine) {
-        await saveToQueue({ chassis, model, inspector, remarks, sheetRemarks, base64, fileName, dTime, draftRevision: draftRevisionAtSubmit, createdAt: Date.now() });
-        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ No internet. Report saved temporarily; it will send when internet returns and the app is open."; }
+        await saveToQueue(queueItem);
+        await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
+        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ No internet. Report saved on this phone. It will sync automatically when internet returns and the app is opened."; }
+        finishProgress("No internet. The report is safely saved on this phone and will sync when the app is online.", "Saved offline");
         return { queued: true, success: false };
     }
     try {
-        const ok = await sendToBackend(chassis, model, inspector, remarks, base64, fileName, dTime, sheetRemarks);
-        if (ok) {
-            await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
-            if (msg) { msg.style.color = "#10b981"; msg.textContent = "✓ Report sent to Telegram & Google Sheet. New inspection is ready."; }
-            return { queued: false, success: true };
+        const result = await sendToBackend(chassis, model, inspector, remarks, base64, fileName, dTime, sheetRemarks, reportId, pdiTime);
+        setProgress("telegram", result.telegram === "Sent" ? "Telegram confirmed the PDF delivery." : "Google Sheets has saved the report. Telegram is retrying delivery automatically.", result.telegram === "Sent" ? "Telegram delivered" : "Telegram delivery pending");
+        await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
+        if (msg) {
+            msg.style.color = result.telegram === "Sent" ? "#10b981" : "#d97706";
+            msg.textContent = result.telegram === "Sent" ? "✓ Report delivered to Google Sheet & Telegram." : "✓ Report safely saved in Google Sheet. Telegram delivery is pending; server will retry automatically.";
         }
-        throw new Error("Upload was not confirmed by server");
+        finishProgress(result.telegram === "Sent" ? "Google Sheets and Telegram delivery are complete." : "Google Sheets saved the report. Telegram will keep retrying until delivery succeeds.", result.telegram === "Sent" ? "Report delivered" : "Telegram pending");
+        return { queued: false, success: true, telegram: result.telegram };
     } catch (err) {
         console.error("Upload error:", err);
-        // Preserve the report locally only if direct delivery fails, for safe retry.
-        await saveToQueue({ chassis, model, inspector, remarks, sheetRemarks, base64, fileName, dTime, draftRevision: draftRevisionAtSubmit, createdAt: Date.now() });
-        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Sending failed. Report saved temporarily and will retry when internet returns."; }
+        await saveToQueue(queueItem);
+        await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
+        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Server could not confirm receipt. Report is saved on this phone and will retry automatically."; }
+        finishProgress("Server did not confirm receipt. The PDF is saved on this phone and will retry.", "Upload pending");
         return { queued: true, success: false, error: err };
     }
 }
 
-// SMART COMPRESS WITH RESOURCE CLEANUP
-function smartCompress(fileOrBase64, maxDim=1200, quality=0.75) {
-    return new Promise((resolve) => {
-        let img = new Image();
-        let isBlob = typeof fileOrBase64 !== 'string';
-        let src = isBlob ? URL.createObjectURL(fileOrBase64) : fileOrBase64;
-        
-        img.onload = () => {
-            try {
-                let w = img.naturalWidth || img.width;
-                let h = img.naturalHeight || img.height;
-                if (w > maxDim || h > maxDim) {
-                    if (w > h) {
-                        h = Math.round((h * maxDim) / w);
-                        w = maxDim;
-                    } else {
-                        w = Math.round((w * maxDim) / h);
-                        h = maxDim;
-                    }
-                }
-                const cv = document.createElement('canvas');
-                cv.width = w; cv.height = h;
-                const ctx = cv.getContext('2d', { alpha: false });
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = 'high';
-                ctx.drawImage(img, 0, 0, w, h);
-                if (isBlob) URL.revokeObjectURL(src);
-                let out = cv.toDataURL('image/jpeg', quality);
-                cv.width = 1; cv.height = 1;
-                resolve(out);
-            } catch(e) {
-                if (isBlob) URL.revokeObjectURL(src);
-                resolve(src);
-            }
-        };
-        img.onerror = () => {
-            if (isBlob) URL.revokeObjectURL(src);
-            resolve(src);
-        };
-        img.src = src;
-    });
-}
-
 // ================= APP ORIGINAL LOGIC =================
-var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null},cr=null,ei=-1,tg=null;
+var $=function(i){return document.getElementById(i)},D={six:{},doc:{},add:[],ck:[],ko:[],sticker:null,battery:null};
+let activeReportId = null;
+let activePdiTime = null;
 // Save every text/select edit to IndexedDB; photo callbacks also save immediately.
 document.addEventListener("input", function(ev){ if (ev.target && ev.target.closest && ev.target.closest("#tabCheck")) scheduleDraftSave(); });
 document.addEventListener("change", function(ev){ if (ev.target && ev.target.closest && ev.target.closest("#tabCheck")) scheduleDraftSave(); });
 window.addEventListener("pagehide", function(){ saveDraftNow().catch(function(e){console.error("Final draft save failed",e);}); });
 
-var selectedFilter = 'original';
 
 var savedInspectors = [];
 try { 
@@ -717,31 +683,40 @@ function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
 function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
 function onM(){$("M").value=$("ms").value;scheduleDraftSave()}
 
-function pick(cam, cb, multi, isCk){
+function pick(cam, cb, multi){
     var i = document.createElement("input");
     i.type = "file";
     i.accept = "image/*";
     if(cam) i.setAttribute("capture", "environment");
     if(multi) i.multiple = true;
-    
     i.onchange = async function(){
         if(!i.files || i.files.length === 0) return;
-        for (let f of Array.from(i.files)) {
-            await rd(f, cb, isCk);
-        }
+        try { for (let f of Array.from(i.files)) await rd(f, cb); }
+        catch(err) { console.error("Photo read failed:", err); alert("Could not load the selected photo. Please try again."); }
         i.value = "";
     };
     i.click();
 }
 
-async function rd(f,cb,isCk){
-    if(isCk){
-        let scaled = await smartCompress(f, 2000, 0.95);
-        cb(scaled);
-    } else {
-        let compactImage = await smartCompress(f, 1100, 0.70);
-        cb(compactImage);
+async function rd(file, cb){
+    let dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error("Could not read photo"));
+        reader.readAsDataURL(file);
+    });
+    // jsPDF supports JPEG/PNG. Convert WebP to lossless PNG only for PDF compatibility.
+    if (file.type === "image/webp") {
+        const image = new Image();
+        dataUrl = await new Promise((resolve, reject) => {
+            image.onload = () => {
+                const canvas = document.createElement("canvas"); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+                canvas.getContext("2d").drawImage(image, 0, 0); resolve(canvas.toDataURL("image/png")); canvas.width = 1; canvas.height = 1;
+            };
+            image.onerror = () => reject(new Error("WebP photo could not be decoded")); image.src = dataUrl;
+        });
     }
+    cb(dataUrl);
 }
 
 function setBattery(u){
@@ -750,48 +725,9 @@ function setBattery(u){
     scheduleDraftSave();
 }
 
-function setFilter(mode){
-    selectedFilter = mode;
-    ['orig','magic','gray','bw'].forEach(function(m){
-        var b = $('f-' + m);
-        if(b) b.classList.remove('active');
-    });
-    if(mode === 'original') $('f-orig').classList.add('active');
-    if(mode === 'enhance') $('f-magic').classList.add('active');
-    if(mode === 'grayscale') $('f-gray').classList.add('active');
-    if(mode === 'bw') $('f-bw').classList.add('active');
-
-    var modal = $('cm');
-    modal.className = 'flt-' + mode;
-}
-
-function processCanvasFilter(cv, mode){
-    if(mode === 'original') return cv.toDataURL("image/jpeg", 0.95);
-    var ctx = cv.getContext("2d");
-    var imgData = ctx.getImageData(0, 0, cv.width, cv.height);
-    var d = imgData.data;
-    for (var i = 0; i < d.length; i += 4) {
-        var r = d[i], g = d[i+1], b = d[i+2];
-        var lum = 0.299 * r + 0.587 * g + 0.114 * b;
-        if(mode === 'enhance'){
-            d[i]   = Math.min(255, Math.max(0, (r - 128) * 1.15 + 128 + 10));
-            d[i+1] = Math.min(255, Math.max(0, (g - 128) * 1.15 + 128 + 10));
-            d[i+2] = Math.min(255, Math.max(0, (b - 128) * 1.15 + 128 + 10));
-        } else if(mode === 'grayscale'){
-            var gray = Math.min(255, Math.max(0, (lum - 128) * 1.15 + 128 + 5));
-            d[i] = gray; d[i+1] = gray; d[i+2] = gray;
-        } else if(mode === 'bw'){
-            var val = lum > 120 ? 255 : 0;
-            d[i] = val; d[i+1] = val; d[i+2] = val;
-        }
-    }
-    ctx.putImageData(imgData, 0, 0);
-    return cv.toDataURL("image/jpeg", 0.95);
-}
-
 var SIX=[["front","Front View"],["rear","Rear View"],["left","Left Side"],["right","Right Side"],["fl","Front LH Corner"],["fr","Front RH Corner"],["rl","Rear LH Corner"],["rr","Rear RH Corner"]];
 
-function card(host,store,k,n,ic,crop){
+function card(host,store,k,n,ic){
     var d=document.createElement("div");
     d.className="card";
     d.dataset.host = host; d.dataset.key = k; d.dataset.placeholder = ic;
@@ -802,9 +738,8 @@ function card(host,store,k,n,ic,crop){
         d.querySelector(".p").innerHTML='<img src="'+u+'">';
         scheduleDraftSave();
     };
-    var go=crop?function(u){ei=-2;tg=function(x){set(x)};openC(u)}:set;
-    bs[0].onclick=function(){pick(1,go,0,crop?true:false)};
-    bs[1].onclick=function(){pick(0,go,0,crop?true:false)};
+    bs[0].onclick=function(){pick(1,set)};
+    bs[1].onclick=function(){pick(0,set)};
     $(host).appendChild(d);
 }
 
@@ -821,8 +756,8 @@ ICON.fl=S0+TV+mk(34,9,'FL')+'</svg>';ICON.fr=S0+TV+mk(66,9,'FR')+'</svg>';ICON.r
 
 SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});
 
-card("docs", D.doc, "f22", "Form 22", "📄", 1);
-card("docs", D.doc, "pen", "Chassis Print", "📋", 0);
+card("docs", D.doc, "f22", "Form 22", "📄");
+card("docs", D.doc, "pen", "Chassis Print", "📋");
 
 // ADDED PHOTOS WITH REMARKS SUPPORT (Only for Additional Photos)
 function gal(id,arr,edit){
@@ -833,9 +768,8 @@ function gal(id,arr,edit){
         
         var t=document.createElement("div");
         t.className="th";
-        t.innerHTML='<img src="'+item.url+'"><button class="x">✕</button>'+(edit?'<button class="e">Edit</button>':'');
+        t.innerHTML='<img src="'+item.url+'"><button class="x">✕</button>';
         t.querySelector(".x").onclick=function(){arr.splice(i,1);gal(id,arr,edit);scheduleDraftSave();};
-        if(edit) t.querySelector(".e").onclick=function(){ei=i;openC(D.ko[i]||item.url)};
         
         var inp = document.createElement("input");
         inp.type = "text";
@@ -861,9 +795,8 @@ function galChecklist(id, arr){
         t.className = "th";
         t.style.width = "72px";
         t.style.height = "72px";
-        t.innerHTML = '<img src="'+item+'"><button class="x">✕</button><button class="e">Edit</button>';
+        t.innerHTML = '<img src="'+item+'"><button class="x">✕</button>';
         t.querySelector(".x").onclick = function(){ arr.splice(i, 1); galChecklist(id, arr); scheduleDraftSave(); };
-        t.querySelector(".e").onclick = function(){ ei = i; openC(D.ko[i] || item); };
         
         wrap.appendChild(t);
         c.appendChild(wrap);
@@ -939,93 +872,19 @@ async function scan(im){
     return null;
 }
 
-function box(im){
-    var cv = document.createElement("canvas"), W = 240, H = Math.round(im.naturalHeight * W / im.naturalWidth);
-    cv.width = W; cv.height = H;
-    var g = cv.getContext("2d");
-    g.drawImage(im, 0, 0, W, H);
-    var d = g.getImageData(0, 0, W, H).data;
-    var getLum = function(x, y){ var i = (y * W + x) * 4; return 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2]; };
-    var x0 = 0, x1 = W - 1, y0 = 0, y1 = H - 1;
-    for(var x = 4; x < W * 0.45; x++){
-        var whiteCount = 0;
-        for(var y = Math.round(H * 0.2); y < H * 0.8; y += 2){ if(getLum(x, y) > 135) whiteCount++; }
-        if(whiteCount / (H * 0.3) > 0.55){ x0 = Math.max(0, x - 2); break; }
-    }
-    for(var x = W - 5; x > W * 0.55; x--){
-        var whiteCount = 0;
-        for(var y = Math.round(H * 0.2); y < H * 0.8; y += 2){ if(getLum(x, y) > 135) whiteCount++; }
-        if(whiteCount / (H * 0.3) > 0.55){ x1 = Math.min(W - 1, x + 2); break; }
-    }
-    for(var y = 4; y < H * 0.45; y++){
-        var whiteCount = 0;
-        for(var x = Math.round(W * 0.2); x < W * 0.8; x += 2){ if(getLum(x, y) > 135) whiteCount++; }
-        if(whiteCount / (W * 0.3) > 0.55){ y0 = Math.max(0, y - 2); break; }
-    }
-    for(var y = H - 5; y > H * 0.55; y--){
-        var whiteCount = 0;
-        for(var x = Math.round(W * 0.2); x < W * 0.8; x += 2){ if(getLum(x, y) > 135) whiteCount++; }
-        if(whiteCount / (W * 0.3) > 0.55){ y1 = Math.min(H - 1, y + 2); break; }
-    }
-    cv.width = 1; cv.height = 1;
-    var sx = im.naturalWidth / W, sy = im.naturalHeight / H;
-    var cropW = (x1 - x0) * sx, cropH = (y1 - y0) * sy;
-    if(cropW < im.naturalWidth * 0.35 || cropH < im.naturalHeight * 0.35){
-        return { x: 0, y: 0, width: im.naturalWidth, height: im.naturalHeight };
-    }
-    return { x: Math.round(x0 * sx), y: Math.round(y0 * sy), width: Math.round(cropW), height: Math.round(cropH) };
-}
-
-function newCk(u){ei=-1;openC(u)}
-
-window.addEventListener('popstate', function(e){
-    if($("cm").style.display === "flex"){ closeC(false); }
-});
-
-function openC(u){
-    var i=$("ci");
-    setFilter('original');
-    $("cm").style.display="flex";
-    history.pushState({modal: "scanner"}, "");
-    if(cr){cr.destroy();cr=null;}
-    i.onload=function(){
-        cr=new Cropper(i,{ viewMode:1, autoCropArea: 1.0, restore:false, highlight:false, zoomable:true, zoomOnTouch:true, wheelZoomRatio:0.1 });
-    };
-    i.src=u;
-}
-
-function auto(){ if(cr) cr.setData(box($("ci"))); }
-
-function closeC(goBack){
-    if(cr){cr.destroy();cr=null;}
-    var i=$("ci"); i.src="";
-    $("cm").style.display="none";
-    if(goBack && history.state && history.state.modal === "scanner"){ history.back(); }
-}
-
-function doneC(){
-    if(!cr)return;
-    var canvas = cr.getCroppedCanvas({ maxWidth: 2000, maxHeight: 2000, imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
-    var u = processCanvasFilter(canvas, selectedFilter);
-    var o = $("ci").src;
-    canvas.width = 1; canvas.height = 1;
-    if(ei==-2){
-        tg(u);
-        scheduleDraftSave();
-    } else {
-        if(ei>=0) D.ck[ei]=u;
-        else { D.ck.push(u); D.ko.push(o); }
-        galChecklist("gc", D.ck);
-        scheduleDraftSave();
-    }
-    closeC(true);
-}
+function newCk(u){ D.ck.push(u); galChecklist("gc", D.ck); scheduleDraftSave(); }
 
 function hd(p,t,s){p.setFillColor(15,23,42);p.rect(0,0,210,s||24,"F");p.setTextColor(255,255,255);p.setFontSize(14);p.setFont(undefined,"bold");p.text(t,14,16)}
+function pdfImageType(dataUrl){
+    const s = String(dataUrl || "").slice(0,40).toLowerCase();
+    if (s.indexOf("image/png") >= 0) return "PNG";
+    if (s.indexOf("image/webp") >= 0) return "PNG";
+    return "JPEG";
+}
 function img(p,u,x,y,w,h,l,isChecklist){
     p.setFont(undefined,"bold");p.setFontSize(8);p.setTextColor(71,85,105);
     if(l)p.text(l,x,y-2);
-    if(u)p.addImage(u,"JPEG",x,y,w,h,undefined,isChecklist?'SLOW':'FAST');
+    if(u)p.addImage(u,pdfImageType(u),x,y,w,h,undefined,isChecklist?'SLOW':'FAST');
     else{p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20)}
 }
 
@@ -1041,7 +900,7 @@ function build(){
         ? remarksList.map((remark, idx) => `${idx + 1}. ${remark}`).join("\n")
         : "No remarks";
 
-    var n=new Date(), p=new window.jspdf.jsPDF("p","mm","a4");
+    var n=activePdiTime ? new Date(activePdiTime) : new Date(), p=new window.jspdf.jsPDF("p","mm","a4");
     hd(p,"PDI REPORT");p.setTextColor(15,23,42);p.setFontSize(10);p.setFillColor(241,245,249);p.roundedRect(14,28,182,32,2,2,"F");
     [
         ["Chassis Number:",ch],
@@ -1080,7 +939,7 @@ function build(){
                 var x=14+ri*(cardW+colGap);
                 p.setFont(undefined,"bold"); p.setFontSize(9); p.setTextColor(71,85,105);
                 p.text("Additional Photo "+(ai+ri+1),x,addY+4);
-                if(item.url) p.addImage(item.url,"JPEG",x,addY+7,cardW,imageH,undefined,"FAST");
+                if(item.url) p.addImage(item.url,pdfImageType(item.url),x,addY+7,cardW,imageH,undefined,"FAST");
                 else {p.rect(x,addY+7,cardW,imageH,"S");p.text("No Photo",x+30,addY+35);}
                 p.setFont(undefined,"normal"); p.setFontSize(8); p.setTextColor(51,65,85);
                 p.text(rowLines[ri],x,addY+7+imageH+4,{lineHeightFactor:1.15});
@@ -1098,21 +957,27 @@ function build(){
     }
 
     D.ck.forEach(function(u){p.addPage();hd(p,"PDI CHECKLIST - "+ch,20);img(p,u,14,26,182,255,"",true)});
-    return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",ch:ch,m:m,insp:insp,remarks:remarksStr};
+    return{p:p,f:ch.replace(/[^a-zA-Z0-9]/g,"_")+"_"+m.replace(/[^a-zA-Z0-9]/g,"_")+".pdf",ch:ch,m:m,insp:insp,remarks:remarksStr,pdiTime:n.toISOString()};
 }
 
 let isExporting = false;
 async function out(share){
     if(isExporting) return;
+    if(share){
+        if(!activeReportId) activeReportId = createReportId();
+        // PDI Submit Time is the exact moment the user taps Share, not draft-save or upload time.
+        // Once queued, this ISO timestamp travels with the report and is never replaced on retry.
+        activePdiTime = new Date().toISOString();
+    }
     var b=build(); if(!b)return;
     isExporting = true;
-    const btnSave = $("btnSave"), btnShare = $("btnShare");
-    if(btnSave) { btnSave.disabled = true; btnSave.textContent = "⏳ Processing..."; }
+    const btnShare = $("btnShare");
     if(btnShare) { btnShare.disabled = true; btnShare.textContent = "⏳ Processing..."; }
     try {
         const blob = b.p.output("blob");
         const f = new File([blob], b.f, {type:"application/pdf"});
-        // Prepare the same complete caption style used for sharing the inspection details.
+        showProgress("PDF generated. Preparing the Google Sheets and Telegram delivery steps...");
+        setProgress("pdf", "PDF generated successfully.");
         const shareText = [
             "PDI INSPECTION REPORT",
             "Chassis Number: " + b.ch,
@@ -1122,65 +987,37 @@ async function out(share){
             "REMARKS:",
             b.remarks
         ].join("\n");
-
-        // Copy the full caption from the original Share-button tap. If WhatsApp
-        // does not attach text with the PDF, the user can paste it into the chat.
         let clipboardPromise = null;
-        let detailsCopied = false;
-        if (share) {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                clipboardPromise = navigator.clipboard.writeText(shareText).then(() => {
-                    detailsCopied = true;
-                }).catch(err => {
-                    console.warn("Clipboard API unavailable:", err);
-                    return false;
-                });
-            } else {
-                try {
-                    const ta = document.createElement("textarea");
-                    ta.value = shareText; ta.style.position = "fixed"; ta.style.opacity = "0";
-                    document.body.appendChild(ta); ta.select();
-                    detailsCopied = document.execCommand("copy"); ta.remove();
-                } catch (err) { console.warn("Clipboard fallback failed:", err); }
-            }
+        if (share && navigator.clipboard && navigator.clipboard.writeText) {
+            clipboardPromise = navigator.clipboard.writeText(shareText).catch(err => { console.warn("Clipboard API unavailable:", err); return false; });
+        } else if (share) {
+            try {
+                const ta = document.createElement("textarea"); ta.value = shareText; ta.style.position = "fixed"; ta.style.opacity = "0";
+                document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+            } catch(err) { console.warn("Clipboard fallback failed:", err); }
         }
-
-        // Start native sharing during the original tap so Android can offer WhatsApp.
+        // Start Android's native share panel during the original button tap.
         let sharePromise = null;
         if (share && navigator.canShare && navigator.canShare({files:[f]})) {
             try { sharePromise = navigator.share({files:[f], title:"PDI Report - "+b.f, text:shareText}); }
             catch(e) { console.error("Share start error:", e); }
-        } else if (!share) {
-            const a=document.createElement("a");
-            const objectUrl=URL.createObjectURL(blob);
-            a.href=objectUrl; a.download=b.f; a.click();
-            setTimeout(()=>URL.revokeObjectURL(objectUrl), 30000);
         }
-
-        // Make sure the current inspection is durable before creating its upload queue item.
+        setProgress("whatsapp", "The phone sharing panel is available. The report is also being saved and delivered in the background.");
         const submittedRevision = await saveDraftNow();
-
-        // Send directly; retain a local pending copy only if delivery is offline or fails.
-        await uploadDirectly(b.ch, b.m, b.insp, b.remarks, blob, b.f, submittedRevision);
+        await uploadDirectly(b.ch, b.m, b.insp, b.remarks, blob, b.f, submittedRevision, activeReportId, b.pdiTime);
         if (clipboardPromise) await clipboardPromise;
         if (sharePromise) {
-            let pdfShareCompleted = false;
-            try { await sharePromise; pdfShareCompleted = true; }
+            try { await sharePromise; }
             catch(e) { if(e.name!=="AbortError") console.error("Share error:",e); }
-            if (pdfShareCompleted) {
-                if (clipboardPromise) await clipboardPromise;
-                // No extra instructional message: keep the WhatsApp message area clean.
-                // The PDI caption itself is copied to the clipboard above.
-            }
         }
     } catch(err) {
         console.error("Report preparation error:", err);
+        finishProgress("The report could not be safely queued. Your inspection draft is still on the phone.", "Could not complete");
         const msg=$("msg");
-        if(msg){msg.style.color="#ef4444";msg.textContent="⚠️ Report could not be safely queued: "+(err.message||"Storage error")+". Do not close this page until saved.";}
+        if(msg){msg.style.color="#ef4444";msg.textContent="⚠️ Report could not be safely saved: "+(err.message||"Storage error")+". Do not close this page until saved.";}
         alert("PDF/queue save failed. Please check phone storage and try again. Your inspection draft has not been cleared.");
     } finally {
         isExporting = false;
-        if(btnSave) { btnSave.disabled = false; btnSave.textContent = "💾 Save PDF"; }
         if(btnShare) { btnShare.disabled = false; btnShare.textContent = "📤 Share PDF"; }
     }
 }
