@@ -623,6 +623,7 @@ function removeInspector() {
     }
 }
 
+/* ================= TATA VEHICLE MODELS (RESTORED) ================= */
 var CAT={"Nexon":["Smart","Smart+","Smart+ S","Pure","Pure S","Creative","Creative+","Creative+ S","Fearless","Fearless S","Fearless+ S","Fearless+ S Dark"],
 "Nexon EV":["Creative 45","Creative+ 45","Fearless 45","Fearless+ 45","Fearless+ S 45","Empowered 45","Empowered+ 45","Empowered+ Dark 45","Creative 30","Fearless 30","Empowered+ 30"],
 "Punch":["Pure","Pure Rhythm","Adventure","Adventure Rhythm","Adventure Sunroof","Accomplished","Accomplished Dazzle","Accomplished Sunroof","Accomplished Dazzle Sunroof","Creative","Creative Dual Tone","Creative Flagship"],
@@ -638,6 +639,7 @@ var CAT={"Nexon":["Smart","Smart+","Smart+ S","Pure","Pure S","Creative","Creati
 "Tigor":["XM","XT","XZ+","XZ+ Dual Tone","XM iCNG","XT iCNG","XZ+ iCNG"],
 "Tigor EV":["XE","XT","XZ+","XZ+ LUX"],
 "Altroz":["XE","XM","XM+","XM+ (S)","XT","XZ","XZ+","XZ+ (S)","XZ+ (O) Dark","Racer R1","Racer R2","Racer R3"]};
+
 function opts(sel,arr,ph){sel.innerHTML='<option value="">'+ph+'</option>'+arr.map(function(a){return '<option>'+a+'</option>'}).join('')}
 var X={};try{X=JSON.parse(localStorage.getItem("yardCat")||"{}")}catch(e){}
 Object.keys(X).forEach(function(m){CAT[m]=(CAT[m]||[]).concat(X[m].filter(function(v){return(CAT[m]||[]).indexOf(v)<0}))});
