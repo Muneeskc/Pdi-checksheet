@@ -449,8 +449,12 @@ async function processPendingQueue() {
     } catch (err) {}
     finally { isSyncing = false; }
 }
+
+// ഓട്ടോമാറ്റിക് സിങ്കിങ് ഫങ്ഷനുകൾ (Online, Focus, Visibility Change)
 window.addEventListener("online", () => { processPendingQueue(); });
 window.addEventListener("pageshow", () => { if (navigator.onLine) processPendingQueue(); });
+window.addEventListener('focus', () => { if (navigator.onLine) processPendingQueue(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && navigator.onLine) processPendingQueue(); });
 
 function createReportId(){
     if (window.crypto && crypto.randomUUID) return "PDI-" + crypto.randomUUID();
