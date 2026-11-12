@@ -95,7 +95,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div id="tabCheck">
     <div class="stk"><h3>📸 Windshield Barcode Sticker</h3><p>Upload sticker photo to auto-detect the chassis number</p>
     <div class="pv" id="spv">No Sticker Uploaded</div>
-    <div class="row"><button onclick="pick(1,sticker)">📷 Take Photo</button><button class="gl" onclick="pick(0,sticker)">🖼️ From Gallery</button></div>
+    <div class="row"><button onclick="pick(1,sticker, false, 1200, 0.75)">📷 Take Photo</button><button class="gl" onclick="pick(0,sticker, false, 1200, 0.75)">🖼️ From Gallery</button></div>
     <div id="st"></div></div>
 
     <div class="box"><label>1. Select Tata Model</label><select id="ms" onchange="onM()"><option value="">-- Choose Vehicle Model --</option></select>
@@ -117,13 +117,13 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
     <div class="sec"><span>📸 Additional Inspection Photos</span><i>Optional with Remarks</i></div>
     <div class="box" style="text-align:center">
-        <div class="row"><button onclick="pick(1,addP)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP,1)">🖼️ From Gallery</button></div>
+        <div class="row"><button onclick="pick(1,addP, false, 1200, 0.75)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP, true, 1200, 0.75)">🖼️ From Gallery</button></div>
         <div class="gal" id="ga"></div>
     </div>
 
     <div class="sec"><span>📑 Checklist Photos</span><i>Original photos</i></div>
     <div class="box" style="text-align:center">
-        <div class="row"><button onclick="pick(1,newCk)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk)">🖼️ From Gallery</button></div>
+        <div class="row"><button onclick="pick(1,newCk, false, 2000, 0.95)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk, false, 2000, 0.95)">🖼️ From Gallery</button></div>
         <div class="gal" id="gc"></div>
     </div>
 
@@ -131,8 +131,8 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     <div class="box" style="text-align:center">
         <div class="pv" id="bpv" style="height:120px;">No Battery Photo Uploaded</div>
         <div class="row">
-            <button onclick="pick(1,setBattery)">📷 Take Battery Photo</button>
-            <button class="gl" onclick="pick(0,setBattery)">🖼️ From Gallery</button>
+            <button onclick="pick(1,setBattery, false, 1200, 0.75)">📷 Take Battery Photo</button>
+            <button class="gl" onclick="pick(0,setBattery, false, 1200, 0.75)">🖼️ From Gallery</button>
         </div>
     </div>
 
@@ -598,14 +598,23 @@ function createReportId(){
 
 async function sendToBackend(chassis, model, inspector, remarks, pdfBase64, fileName, dTime, sheetRemarks = remarks, reportId, pdiTime) {
     if (!navigator.onLine) throw new Error("Internet connection unavailable");
-    const res = await fetch(SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-            reportId, requestId: reportId, pdiTime, dateTime: dTime, chassis, model, inspector,
-            status: "PENDING", remarks, sheetRemarks, fileName, pdfBase64
-        })
-    });
+    const controller = new AbortController();
+    const uploadTimeout = setTimeout(() => controller.abort(), 120000);
+    let res;
+    try {
+        res = await fetch(SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({
+                reportId, requestId: reportId, pdiTime, dateTime: dTime, chassis, model, inspector,
+                status: "PENDING", remarks, sheetRemarks, fileName, pdfBase64
+            }),
+            signal: controller.signal
+        });
+    } catch (err) {
+        if (err && err.name === "AbortError") throw new Error("Upload timed out after 120 seconds. Report is retained on this phone for retry.");
+        throw new Error("Could not reach PDI server: " + (err.message || err));
+    } finally { clearTimeout(uploadTimeout); }
     if (!res.ok) throw new Error("Server HTTP " + res.status);
     const raw = await res.text();
     let json;
@@ -811,39 +820,49 @@ function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
 function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
 function onM(){$("M").value=$("ms").value;scheduleDraftSave()}
 
-function pick(cam, cb, multi){
+// Photo optimization: resize + JPEG encoding only. No filters, color edits,
+// sharpening, scan effects or enhancement are applied. Checklist stays at 95%.
+function compressPhoto(file, maxDim, quality){
+    return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+                if (!iw || !ih) throw new Error("Invalid image dimensions");
+                const scale = Math.min(1, maxDim / Math.max(iw, ih));
+                const w = Math.max(1, Math.round(iw * scale)), h = Math.max(1, Math.round(ih * scale));
+                const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext("2d", {alpha:false});
+                if (!ctx) throw new Error("Image processor unavailable");
+                ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+                ctx.drawImage(img, 0, 0, w, h);
+                const result = canvas.toDataURL("image/jpeg", quality);
+                canvas.width = 1; canvas.height = 1;
+                URL.revokeObjectURL(objectUrl);
+                if (!result || result === "data:,") throw new Error("Photo compression failed");
+                resolve(result);
+            } catch(err) { URL.revokeObjectURL(objectUrl); reject(err); }
+        };
+        img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Photo could not be decoded")); };
+        img.src = objectUrl;
+    });
+}
+function pick(cam, cb, multi, maxDim=1200, quality=0.75){
     var i = document.createElement("input");
-    i.type = "file";
-    i.accept = "image/*";
+    i.type = "file"; i.accept = "image/*";
     if(cam) i.setAttribute("capture", "environment");
     if(multi) i.multiple = true;
     i.onchange = async function(){
         if(!i.files || i.files.length === 0) return;
-        try { for (let f of Array.from(i.files)) await rd(f, cb); }
-        catch(err) { console.error("Photo read failed:", err); alert("Could not load the selected photo. Please try again."); }
+        try { for (let f of Array.from(i.files)) await rd(f, cb, maxDim, quality); }
+        catch(err) { console.error("Photo processing failed:", err); alert("Could not process this photo. Please select it again."); }
         i.value = "";
     };
     i.click();
 }
-
-async function rd(file, cb){
-    let dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(reader.error || new Error("Could not read photo"));
-        reader.readAsDataURL(file);
-    });
-    // jsPDF supports JPEG/PNG. Convert WebP to lossless PNG only for PDF compatibility.
-    if (file.type === "image/webp") {
-        const image = new Image();
-        dataUrl = await new Promise((resolve, reject) => {
-            image.onload = () => {
-                const canvas = document.createElement("canvas"); canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
-                canvas.getContext("2d").drawImage(image, 0, 0); resolve(canvas.toDataURL("image/png")); canvas.width = 1; canvas.height = 1;
-            };
-            image.onerror = () => reject(new Error("WebP photo could not be decoded")); image.src = dataUrl;
-        });
-    }
+async function rd(file, cb, maxDim=1200, quality=0.75){
+    const dataUrl = await compressPhoto(file, maxDim, quality);
     cb(dataUrl);
 }
 
@@ -866,8 +885,8 @@ function card(host,store,k,n,ic){
         d.querySelector(".p").innerHTML='<img src="'+u+'">';
         scheduleDraftSave();
     };
-    bs[0].onclick=function(){pick(1,set)};
-    bs[1].onclick=function(){pick(0,set)};
+    bs[0].onclick=function(){pick(1,set, false, 1200, 0.75)};
+    bs[1].onclick=function(){pick(0,set, false, 1200, 0.75)};
     $(host).appendChild(d);
 }
 
