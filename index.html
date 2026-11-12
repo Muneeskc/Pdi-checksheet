@@ -897,7 +897,8 @@ ICON.fl=S0+TV+mk(34,9,'FL')+'</svg>';ICON.fr=S0+TV+mk(66,9,'FR')+'</svg>';ICON.r
 SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});
 
 card("docs", D.doc, "f22", "Form 22", "📄");
-// Chassis Print is captured at its own 80% quality.
+// Dedicated Chassis Print / Impression upload card (80% JPEG quality).
+card("docs", D.doc, "pen", "Chassis Print / Impression", "🖨️");
 (function(){
     var host=$("docs"), cards=host.querySelectorAll(".card");
     var penCard=Array.from(cards).find(function(el){return el.dataset.key==="pen";});
