@@ -1,5 +1,5 @@
 
-/* PDI Pro Service Worker - v36
+/* PDI Pro Service Worker - v37
  * Updates app files without touching IndexedDB/local inspection drafts.
  */
 const CACHE_NAME = 'pdi-pro-cache-v35';
