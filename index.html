@@ -95,7 +95,7 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 <div id="tabCheck">
     <div class="stk"><h3>📸 Windshield Barcode Sticker</h3><p>Upload sticker photo to auto-detect the chassis number</p>
     <div class="pv" id="spv">No Sticker Uploaded</div>
-    <div class="row"><button onclick="pick(1,sticker, false, 1200, 0.75)">📷 Take Photo</button><button class="gl" onclick="pick(0,sticker, false, 1200, 0.75)">🖼️ From Gallery</button></div>
+    <div class="row"><button onclick="pick(1,sticker,false,1600,0.80)">📷 Take Photo</button><button class="gl" onclick="pick(0,sticker,false,1600,0.80)">🖼️ From Gallery</button></div>
     <div id="st"></div></div>
 
     <div class="box"><label>1. Select Tata Model</label><select id="ms" onchange="onM()"><option value="">-- Choose Vehicle Model --</option></select>
@@ -117,13 +117,13 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
 
     <div class="sec"><span>📸 Additional Inspection Photos</span><i>Optional with Remarks</i></div>
     <div class="box" style="text-align:center">
-        <div class="row"><button onclick="pick(1,addP, false, 1200, 0.75)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP, true, 1200, 0.75)">🖼️ From Gallery</button></div>
+        <div class="row"><button onclick="pick(1,addP)">📷 Add Photo</button><button class="gl" onclick="pick(0,addP,1)">🖼️ From Gallery</button></div>
         <div class="gal" id="ga"></div>
     </div>
 
     <div class="sec"><span>📑 Checklist Photos</span><i>Original photos</i></div>
     <div class="box" style="text-align:center">
-        <div class="row"><button onclick="pick(1,newCk, false, 2000, 0.95)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk, false, 2000, 0.95)">🖼️ From Gallery</button></div>
+        <div class="row"><button onclick="pick(1,newCk,false,2000,0.95)">📷 Snap Checklist</button><button class="gl" onclick="pick(0,newCk,false,2000,0.95)">🖼️ From Gallery</button></div>
         <div class="gal" id="gc"></div>
     </div>
 
@@ -131,8 +131,8 @@ input[type=text],select{width:100%;padding:11px 12px;background:var(--cd);border
     <div class="box" style="text-align:center">
         <div class="pv" id="bpv" style="height:120px;">No Battery Photo Uploaded</div>
         <div class="row">
-            <button onclick="pick(1,setBattery, false, 1200, 0.75)">📷 Take Battery Photo</button>
-            <button class="gl" onclick="pick(0,setBattery, false, 1200, 0.75)">🖼️ From Gallery</button>
+            <button onclick="pick(1,setBattery)">📷 Take Battery Photo</button>
+            <button class="gl" onclick="pick(0,setBattery)">🖼️ From Gallery</button>
         </div>
     </div>
 
@@ -598,23 +598,14 @@ function createReportId(){
 
 async function sendToBackend(chassis, model, inspector, remarks, pdfBase64, fileName, dTime, sheetRemarks = remarks, reportId, pdiTime) {
     if (!navigator.onLine) throw new Error("Internet connection unavailable");
-    const controller = new AbortController();
-    const uploadTimeout = setTimeout(() => controller.abort(), 120000);
-    let res;
-    try {
-        res = await fetch(SCRIPT_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({
-                reportId, requestId: reportId, pdiTime, dateTime: dTime, chassis, model, inspector,
-                status: "PENDING", remarks, sheetRemarks, fileName, pdfBase64
-            }),
-            signal: controller.signal
-        });
-    } catch (err) {
-        if (err && err.name === "AbortError") throw new Error("Upload timed out after 120 seconds. Report is retained on this phone for retry.");
-        throw new Error("Could not reach PDI server: " + (err.message || err));
-    } finally { clearTimeout(uploadTimeout); }
+    const res = await fetch(SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+            reportId, requestId: reportId, pdiTime, dateTime: dTime, chassis, model, inspector,
+            status: "PENDING", remarks, sheetRemarks, fileName, pdfBase64
+        })
+    });
     if (!res.ok) throw new Error("Server HTTP " + res.status);
     const raw = await res.text();
     let json;
@@ -820,23 +811,24 @@ function rm(){opts($("ms"),Object.keys(CAT),"-- Choose Vehicle Model --")}rm();
 function addM(){var n=$("nm").value.trim();if(!n)return;if(!CAT[n]){CAT[n]=[];X[n]=[];sv()}rm();$("ms").value=n;onM();$("nm").value=""}
 function onM(){$("M").value=$("ms").value;scheduleDraftSave()}
 
-// Photo optimization: resize + JPEG encoding only. No filters, color edits,
-// sharpening, scan effects or enhancement are applied. Checklist stays at 95%.
-function compressPhoto(file, maxDim, quality){
-    return new Promise((resolve, reject) => {
-        const objectUrl = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => {
+// Compress every selected/captured photo before saving it in the draft or adding it to the PDF.
+// This reduces IndexedDB usage, PDF size and offline upload time while keeping inspection details readable.
+async function compressPhoto(file, maxDim=1600, quality=0.75){
+    const objectUrl = URL.createObjectURL(file);
+    return await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => {
             try {
-                const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+                const iw = image.naturalWidth || image.width, ih = image.naturalHeight || image.height;
                 if (!iw || !ih) throw new Error("Invalid image dimensions");
                 const scale = Math.min(1, maxDim / Math.max(iw, ih));
                 const w = Math.max(1, Math.round(iw * scale)), h = Math.max(1, Math.round(ih * scale));
                 const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
                 const ctx = canvas.getContext("2d", {alpha:false});
                 if (!ctx) throw new Error("Image processor unavailable");
+                ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
                 ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
-                ctx.drawImage(img, 0, 0, w, h);
+                ctx.drawImage(image, 0, 0, w, h);
                 const result = canvas.toDataURL("image/jpeg", quality);
                 canvas.width = 1; canvas.height = 1;
                 URL.revokeObjectURL(objectUrl);
@@ -844,24 +836,25 @@ function compressPhoto(file, maxDim, quality){
                 resolve(result);
             } catch(err) { URL.revokeObjectURL(objectUrl); reject(err); }
         };
-        img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Photo could not be decoded")); };
-        img.src = objectUrl;
+        image.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Photo could not be decoded")); };
+        image.src = objectUrl;
     });
 }
-function pick(cam, cb, multi, maxDim=1200, quality=0.75){
+function pick(cam, cb, multi, maxDim=1600, quality=0.75){
     var i = document.createElement("input");
-    i.type = "file"; i.accept = "image/*";
+    i.type = "file";
+    i.accept = "image/*";
     if(cam) i.setAttribute("capture", "environment");
     if(multi) i.multiple = true;
     i.onchange = async function(){
         if(!i.files || i.files.length === 0) return;
         try { for (let f of Array.from(i.files)) await rd(f, cb, maxDim, quality); }
-        catch(err) { console.error("Photo processing failed:", err); alert("Could not process this photo. Please select it again."); }
+        catch(err) { console.error("Photo compression failed:", err); alert("Could not process this photo. Please select it again."); }
         i.value = "";
     };
     i.click();
 }
-async function rd(file, cb, maxDim=1200, quality=0.75){
+async function rd(file, cb, maxDim=1600, quality=0.75){
     const dataUrl = await compressPhoto(file, maxDim, quality);
     cb(dataUrl);
 }
@@ -885,8 +878,8 @@ function card(host,store,k,n,ic){
         d.querySelector(".p").innerHTML='<img src="'+u+'">';
         scheduleDraftSave();
     };
-    bs[0].onclick=function(){pick(1,set, false, 1200, 0.75)};
-    bs[1].onclick=function(){pick(0,set, false, 1200, 0.75)};
+    bs[0].onclick=function(){pick(1,set)};
+    bs[1].onclick=function(){pick(0,set)};
     $(host).appendChild(d);
 }
 
@@ -904,7 +897,12 @@ ICON.fl=S0+TV+mk(34,9,'FL')+'</svg>';ICON.fr=S0+TV+mk(66,9,'FR')+'</svg>';ICON.r
 SIX.forEach(function(s){card("six",D.six,s[0],s[1],ICON[s[0]])});
 
 card("docs", D.doc, "f22", "Form 22", "📄");
-card("docs", D.doc, "pen", "Chassis Print", "📋");
+// Chassis Print is captured at its own 80% quality.
+(function(){
+    var host=$("docs"), cards=host.querySelectorAll(".card");
+    var penCard=Array.from(cards).find(function(el){return el.dataset.key==="pen";});
+    if(penCard){ var bs=penCard.querySelectorAll("button"); bs[0].onclick=function(){pick(1,function(u){D.doc.pen=u;penCard.querySelector(".p").innerHTML='<img src="'+u+'">';scheduleDraftSave();},false,1600,0.80);}; bs[1].onclick=function(){pick(0,function(u){D.doc.pen=u;penCard.querySelector(".p").innerHTML='<img src="'+u+'">';scheduleDraftSave();},false,1600,0.80);}; }
+})();
 
 // ADDED PHOTOS WITH REMARKS SUPPORT (Only for Additional Photos)
 function gal(id,arr,edit){
@@ -1035,6 +1033,42 @@ function img(p,u,x,y,w,h,l,isChecklist){
     else{p.rect(x,y,w,h,"S");p.text("No Photo",x+15,y+20)}
 }
 
+// Recompress already-captured photos if the complete PDF exceeds 20 MB.
+function recompressDataUrl(dataUrl, maxDim, quality){
+    if(!dataUrl) return Promise.resolve(dataUrl);
+    return new Promise(function(resolve,reject){
+        var im=new Image();
+        im.onload=function(){
+            try{
+                var iw=im.naturalWidth||im.width, ih=im.naturalHeight||im.height;
+                var scale=Math.min(1,maxDim/Math.max(iw,ih));
+                var w=Math.max(1,Math.round(iw*scale)), h=Math.max(1,Math.round(ih*scale));
+                var c=document.createElement("canvas");c.width=w;c.height=h;
+                var ctx=c.getContext("2d",{alpha:false});
+                ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality="high";
+                ctx.drawImage(im,0,0,w,h);
+                var out=c.toDataURL("image/jpeg",quality);c.width=1;c.height=1;
+                resolve(out);
+            }catch(e){reject(e)}
+        };
+        im.onerror=function(){reject(new Error("Could not recompress an inspection photo"))};
+        im.src=dataUrl;
+    });
+}
+async function recompressInspectionImages(pass){
+    // Each retry lowers quality one step. Checklist pages are compressed separately.
+    var normalQ=pass===1?0.58:(pass===2?0.45:0.35), checklistQ=pass===1?0.82:(pass===2?0.70:0.60), chassisQ=pass===1?0.65:(pass===2?0.55:0.45);
+    var sixKeys=Object.keys(D.six||{});
+    for(var i=0;i<sixKeys.length;i++) if(D.six[sixKeys[i]]) D.six[sixKeys[i]]=await recompressDataUrl(D.six[sixKeys[i]],1400,normalQ);
+    for(var j=0;j<(D.add||[]).length;j++) if(D.add[j].url) D.add[j].url=await recompressDataUrl(D.add[j].url,1400,normalQ);
+    if(D.sticker) D.sticker=await recompressDataUrl(D.sticker,1400,chassisQ);
+    if(D.battery) D.battery=await recompressDataUrl(D.battery,1400,normalQ);
+    if(D.doc.f22) D.doc.f22=await recompressDataUrl(D.doc.f22,1400,normalQ);
+    if(D.doc.pen) D.doc.pen=await recompressDataUrl(D.doc.pen,1400,chassisQ);
+    for(var k=0;k<(D.ck||[]).length;k++) D.ck[k]=await recompressDataUrl(D.ck[k],1600,checklistQ);
+    await saveDraftNow();
+}
+
 function build(){
     var ch=$("C").value.toUpperCase().trim(), m=$("M").value.trim();
     var insp = $("inspName").value.trim();
@@ -1047,7 +1081,7 @@ function build(){
         ? remarksList.map((remark, idx) => `${idx + 1}. ${remark}`).join("\n")
         : "No remarks";
 
-    var n=activePdiTime ? new Date(activePdiTime) : new Date(), p=new window.jspdf.jsPDF("p","mm","a4");
+    var n=activePdiTime ? new Date(activePdiTime) : new Date(), p=new window.jspdf.jsPDF({orientation:"p",unit:"mm",format:"a4",compress:true});
     hd(p,"PDI REPORT");p.setTextColor(15,23,42);p.setFontSize(10);p.setFillColor(241,245,249);p.roundedRect(14,28,182,32,2,2,"F");
     [
         ["Chassis Number:",ch],
@@ -1122,9 +1156,22 @@ async function out(share){
     const btnShare = $("btnShare");
     if(btnShare) { btnShare.disabled = true; btnShare.textContent = "⏳ Processing..."; }
     try {
-        const blob = b.p.output("blob");
+        let blob = b.p.output("blob");
+        const PDF_LIMIT_BYTES = 20 * 1024 * 1024;
+        for(let compressionPass=1; blob.size>PDF_LIMIT_BYTES && compressionPass<=3; compressionPass++){
+            showProgress("PDF is above 20 MB. Automatically compressing inspection photos (pass "+compressionPass+")...");
+            await recompressInspectionImages(compressionPass);
+            b=build();
+            if(!b) throw new Error("Could not rebuild the PDF after compression");
+            blob=b.p.output("blob");
+        }
+        if(blob.size>PDF_LIMIT_BYTES){
+            const sizeMB=(blob.size/1024/1024).toFixed(1);
+            alert("PDF is still "+sizeMB+" MB after automatic compression. Please reduce the number of photos or checklist pages before sharing.");
+            throw new Error("PDF remains above 20 MB after automatic compression");
+        }
         const f = new File([blob], b.f, {type:"application/pdf"});
-        showProgress("PDF generated. Preparing the Google Sheets and Telegram delivery steps...");
+        showProgress("PDF generated and optimized ("+(blob.size/1024/1024).toFixed(1)+" MB). Preparing delivery...");
         setProgress("pdf", "PDF generated successfully.");
         const shareText = [
             "PDI INSPECTION REPORT",
