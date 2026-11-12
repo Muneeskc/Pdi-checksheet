@@ -273,7 +273,8 @@ reqDB.onsuccess = async (e) => {
     db.onversionchange = () => db.close();
     dbReadyResolve(db);
     try { await restoreDraft(); } catch (err) { console.error("Draft restore error:", err); }
-    processPendingQueue();
+    try { await updatePendingQueueStatus(); } catch (err) { console.error("Pending queue status error:", err); }
+    kickPendingSync("database-ready");
 };
 reqDB.onerror = () => {
     console.error("IndexedDB open failed:", reqDB.error);
@@ -359,7 +360,7 @@ function resetInspectionUI() {
 }
 async function clearCurrentForm() {
     if (isExporting) { alert("Please wait until the current PDF is safely shared and saved."); return; }
-    if (!confirm("Clear this vehicle's current inspection form? Any already queued offline reports will remain safe.")) return;
+    if (!confirm("Clear this inspection form and its saved draft from this phone? Pending offline reports already in the upload queue will NOT be deleted. This cannot be undone.")) return;
     await dbReady;
     if (db) {
         const tx = db.transaction("inspection_draft", "readwrite");
@@ -371,26 +372,15 @@ async function clearCurrentForm() {
     if (msg) { msg.style.color = "#38bdf8"; msg.textContent = "✓ Form cleared. Ready for the next vehicle. Previously queued offline reports are still safe"; }
 }
 
-async function completeQueuedUpload(queueId, revision) {
+async function completeQueuedUpload(queueId) {
+    // Successful delivery removes ONLY the pending queue item.
+    // The inspection draft remains until the user explicitly taps Clear Form.
     await dbReady;
     if (!db || !queueId) throw new Error("Upload queue record is unavailable");
-    const tx = db.transaction(["pending_uploads", "inspection_draft"], "readwrite");
-    const queueStore = tx.objectStore("pending_uploads");
-    const draftStore = tx.objectStore("inspection_draft");
-    let clearedCurrentDraft = false;
-    const getDraft = draftStore.get("current");
-    getDraft.onsuccess = () => {
-        const current = getDraft.result;
-        if (current && Number(current.revision) === Number(revision)) {
-            draftStore.delete("current");
-            clearedCurrentDraft = true;
-        }
-        queueStore.delete(queueId);
-    };
-    getDraft.onerror = () => tx.abort();
+    const tx = db.transaction("pending_uploads", "readwrite");
+    tx.objectStore("pending_uploads").delete(queueId);
     await idbDone(tx);
-    if (clearedCurrentDraft) resetInspectionUI();
-    return clearedCurrentDraft;
+    return true;
 }
 async function restoreDraft() {
     if (!db) return;
@@ -469,6 +459,24 @@ async function removeFromQueue(id) {
     await idbDone(tx);
 }
 
+async function getPendingQueueItems() {
+    await dbReady;
+    if (!db) return [];
+    const tx = db.transaction("pending_uploads", "readonly");
+    return await idbRequest(tx.objectStore("pending_uploads").getAll());
+}
+async function updatePendingQueueStatus() {
+    const items = await getPendingQueueItems();
+    const msg = $("msg");
+    if (!msg || !items.length) return items.length;
+    const count = items.length;
+    msg.style.color = navigator.onLine ? "#38bdf8" : "#d97706";
+    msg.textContent = navigator.onLine
+        ? `📦 ${count} report(s) safely queued on this phone. Checking connection and syncing automatically...`
+        : `📦 ${count} report(s) safely saved on this phone. They will upload automatically when internet returns.`;
+    return count;
+}
+
 let isSyncing = false;
 async function processPendingQueue() {
     await dbReady;
@@ -488,7 +496,7 @@ async function processPendingQueue() {
                 // Accept that response too, so a successfully synced offline item is removed
                 // from the local retry queue instead of being uploaded again on every resume.
                 if (result && (result.accepted === true || result.status === "success")) {
-                    await completeQueuedUpload(it.id, it.draftRevision);
+                    await completeQueuedUpload(it.id);
                     if (msg) {
                         msg.style.color = result.telegram === "Sent" ? "#10b981" : "#d97706";
                         msg.textContent = result.telegram === "Sent" ? "✓ Report delivered to Google Sheet & Telegram." : "✓ Report saved in Google Sheet. Telegram delivery is pending and will retry automatically.";
@@ -501,7 +509,17 @@ async function processPendingQueue() {
             }
         }
     } catch (err) { console.error("Queue read error:", err); }
-    finally { isSyncing = false; }
+    finally {
+        isSyncing = false;
+        try {
+            const remaining = await getPendingQueueItems();
+            const msg = $("msg");
+            if (remaining.length && msg && !msg.textContent.includes("Upload pending")) {
+                msg.style.color = "#d97706";
+                msg.textContent = `📦 ${remaining.length} report(s) still safely queued and awaiting upload.`;
+            }
+        } catch (statusErr) { console.error("Queue status refresh failed:", statusErr); }
+    }
 }
 // Network reachability + resume-safe automatic sync. navigator.onLine alone can be
 // true even when the Apps Script endpoint is unreachable, so verify the backend.
@@ -597,7 +615,7 @@ async function sendToBackend(chassis, model, inspector, remarks, pdfBase64, file
 }
 async function clearDraftAfterDirectUpload(revision) {
     await dbReady;
-    if (!db) return false;
+    if (!db) throw new Error("Local database unavailable; keeping the inspection draft safe.");
     const tx = db.transaction("inspection_draft", "readwrite");
     const store = tx.objectStore("inspection_draft");
     const req = store.get("current");
@@ -657,15 +675,17 @@ async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName
 
     if (!navigator.onLine) {
         await saveToQueue(queueItem);
-        await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
-        if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ No internet. Report saved on this phone. It will sync automatically when internet returns and the app is opened."; }
+        // Keep the inspection draft until the user explicitly taps Clear Form.
+        const pendingCount = await updatePendingQueueStatus();
+        if (msg) { msg.style.color = "#d97706"; msg.textContent = `⚠️ Offline. This report is safely queued (${pendingCount} pending). The form is clear for the next vehicle; queued PDFs will upload automatically when internet returns.`; }
         finishProgress("No internet. The report is safely saved on this phone and will sync when the app is online.", "Saved offline");
         return { queued: true, success: false };
     }
     try {
         const result = await sendToBackend(chassis, model, inspector, remarks, base64, fileName, dTime, sheetRemarks, reportId, pdiTime);
         setProgress("telegram", result.telegram === "Sent" ? "Telegram confirmed the PDF delivery." : "Google Sheets has saved the report. Telegram is retrying delivery automatically.", result.telegram === "Sent" ? "Telegram delivered" : "Telegram delivery pending");
-        await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
+        // Keep the inspection draft after server acceptance so it can be restored
+        // and shared again from WhatsApp without creating a new report ID.
         if (msg) {
             msg.style.color = result.telegram === "Sent" ? "#10b981" : "#d97706";
             msg.textContent = result.telegram === "Sent" ? "✓ Report delivered to Google Sheet & Telegram." : "✓ Report safely saved in Google Sheet. Telegram delivery is pending; server will retry automatically.";
@@ -675,7 +695,7 @@ async function uploadDirectly(chassis, model, inspector, remarks, blob, fileName
     } catch (err) {
         console.error("Upload error:", err);
         await saveToQueue(queueItem);
-        await clearDraftAfterDirectUpload(draftRevisionAtSubmit);
+        // Keep the current inspection draft; only Clear Form may remove it.
         if (msg) { msg.style.color = "#d97706"; msg.textContent = "⚠️ Server could not confirm receipt. Report is saved on this phone and will retry automatically."; }
         finishProgress("Server did not confirm receipt. The PDF is saved on this phone and will retry.", "Upload pending");
         return { queued: true, success: false, error: err };
@@ -1072,10 +1092,11 @@ let isExporting = false;
 async function out(share){
     if(isExporting) return;
     if(share){
+        // One stable ID per inspection draft. Repeat shares reuse it so the backend
+        // can avoid duplicate Google Sheets/Telegram deliveries.
         if(!activeReportId) activeReportId = createReportId();
-        // PDI Submit Time is the exact moment the user taps Share, not draft-save or upload time.
-        // Once queued, this ISO timestamp travels with the report and is never replaced on retry.
-        activePdiTime = new Date().toISOString();
+        // Keep the original submit timestamp for repeat shares and upload retries.
+        if(!activePdiTime) activePdiTime = new Date().toISOString();
     }
     var b=build(); if(!b)return;
     isExporting = true;
